@@ -1,0 +1,335 @@
+# Tutorial: How to Get stated with this project for Contributers
+
+Please read Readme for folder structure instructions.
+
+## Shortcuts
+
+Git merge code:
+```
+git merge main -m 'incorporating latest from main'
+```
+Starting Singular shell:
+```
+singularity shell --nv --bind /work:/work,/cwork:/cwork /opt/apps/containers/oit/jupyter/courses-jupyter-cuda.sif
+``` 
+
+## Setting up
+
+Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
+
+1. Open this page on your laptop web browser and login with Duke NetID
+   login: https://gitlab.oit.duke.edu/-/user_settings/ssh_keys
+
+2. In your course shell, issue the following command to generate an
+   SSH key for your container:
+   ```
+   ssh-keygen -t ed25519 -C "My probablilistic ml Key"
+   ```
+   You may access the default file by pressing Enter/Return on your
+   
+   keyboard.  If it asks you for a passphrase, DO NOT TYPE ANYTHING
+   --- just press Enter/Return; and when it asks you for the
+   passphrase again, just press Enter/Return again.  An ASCII image
+   will appear in the Terminal, disregard that.
+
+3. Now, we need to view the SSH key you generated. Run this command in
+   your course shell:
+   ```
+   cat ~/.ssh/id_ed25519.pub
+   ```
+   You should see an output that begins with `ssh-ed25519`, ends with
+   `My probablilistic ML Key`, and contains lots of random
+   characters in between.
+
+4. Highlight and copy the entire public SSH key beginning with
+   `ssh-ed25519` and ending with `My project_medimgclas Key`
+   (inclusive).  Go to the page you opened on your browser from
+   Step 1, press "Add new key", and then paste the public SSH key
+   into the big text box on the page.
+   - Set the Title to be "My CompSci 516 Container Key".
+   - Set the Expiration Date to some time long after this course is
+     over.
+   Press "Add key" and you should be brought to a screen that confirms
+   that the key was added to GitLab.
+   > Note: The entire key should be copied as one single line, i.e.,
+     with no line break (other than the fact that the long line may
+     automatically wrap around).  If for some reason you end up with
+     an extra line break, just delete that (but no other character).
+
+5. In your course shell, run the following commands to set up `git`
+   (replace `your_netid` and `your_name` below with appropriate
+   values):
+   ```
+   git config --global user.email "your_netid@duke.edu"
+   git config --global user.name "your_name"
+   ```
+
+6. We will create a directory in your container to store data/code
+   from the course:
+   ```
+   mkdir -p project_MedImgClas
+   ```
+
+7. Now, we are ready to pull the latest data/code from the course for
+   the first time:
+   ```
+   git clone <Git link you need to clone> project_MedImgClas
+   ```
+   If you see some message like "The authenticity of host
+   'gitlab.oit.duke.edu (...)' can't be established", it is okay to
+   answer "yes" to continue connecting; you shouldn't see this message
+   again following this initial connection. If all goes well, you
+   should now see some contents in `project_MedImgClas`, which you can verify
+   using:
+   ```
+   ls project_MedImgClas
+   ```
+   If this doesn't show any contents, there might be something wrong with
+   your SSH key. Try Steps 3 and 4 above again.
+
+8. You are all set.
+
+## Overview and goal
+
+Let's say that you want to add a file "dummy.py" that will print "Hi Veena!"
+
+In order to accomplish this task, you will learn:
+
+* How to use the source control tool `git` to create a workspace for
+  you to work on this feature without stepping on your teammates'
+  toes, and to integrate new feature into your team repo in the end;
+
+## Making your feature branch
+
+First, you want to create a "branch" to work on this new feature.
+Your team repo has a `main` branch that holds the "definitive" version
+of your project.  Creating a separate branch allows you to work making
+your changes to code in a protected environment where you and your
+teammates can work on things independently without stepping on each
+other's toes.  Pick a name for your branch that's meaningful to your
+team, say `veena_dummy` (replace `veena` with your own name to avoid
+nameclash with your teammates), create it, switch to it, and tell the
+team repo about it:
+```
+git branch veena_dummy
+git checkout veena_dummy
+git push --set-upstream origin veena_dummy
+```
+We will walk you through the steps of checking in code changes next.
+
+## Creating a Python file and modifying the content
+
+1. At this point you should have a codeserver/VS code running.
+2. From the folders tab, create a new file named "dummy.py".
+3. Open the file and type:
+   ```
+   print("Hi Veena")
+   ```
+4. Save the file
+
+This step is analogous to making edits in files as we move ahead in the project.
+
+## Your first `git` commit
+
+1. You've done enough work to warrant a commit, which saves your work
+   so far.  Here are some rules of thumbs on what goes into a commit:
+   * Try to make your changes in conceptually clean steps, and commit
+     at the end of every step.  Don't let too many changes accumulate!
+   * Each step should be "complete" in some sense.  Don't check in
+     a change that depends on something else not in the commit yet.
+   * Always test your code before committing.  Every commit should
+     end with a working code base.  Imagine how frustrating it would
+     be if you check out somebody's changes only to find out that they
+     break everything!
+
+2. The following command gives you a summary of what changes you have
+   made:
+   ```
+   git status
+   ```
+   You should see that you are currently on the `veena_dummy`
+   branch, and you have "untracked" `dummy.py` file. You can add all
+   modifications into a staging area for commit in one go:
+   ```
+   git add -u
+   ```
+   You should add untracked files one at time, making sure that each
+   one is really needed (as opposed to some temporary/sensitive file
+   that shouldn't be checked in).  For example:
+   ```
+   git add dummy.py
+   ```
+   You can use the `git status` again to see where things stand.  It
+   will show which files you've already added to the staging area for
+   commit, and what other changes remain.
+
+3. To commit, issue the following command:
+   ```
+   git commit -m "adding python file name dummy.py"
+   ```
+   Here, use the message in quotes to describe your changes briefly.
+   Congrats!  You made your first commit (at least in your local
+   repo).
+
+4. Next, you need to push the commit upstream:
+   ```
+   git push
+   ```
+   Now, your changes will be visible in your team's repo for others to
+   see, though at this point they still remain in branch separately
+   from the `main` --- we will discuss how to do a "merge request"
+   later.
+
+## Keeping up with the `main` branch
+
+1. So far, our changes are fairly local, but our next steps may
+   involve editing other files in none-trivial ways, and these files
+   might have changed since you branched off from `main`, causing
+   potential conflicts.  If you don't expect there to be major changes
+   affecting your own branch, you could wait until you are ready to
+   merge your branch into `main` and resolve any conflicts at that
+   time.  But what if signficant changes have been already made on
+   `main`?  It would be prudent to incorporate these changes into your
+   own branch soon rather than later.  We will walk through this
+   scenario next.
+
+2. Before you start, make sure that your branch is itself "clean"; you
+   have committed and pushed all changes.  When you are ready, here is
+   the sequence of `git` steps needed to refresh your branch:
+   ```
+   # first, temporarily switch to the main branch to download the latest:
+   git checkout main
+   git pull
+   # then, go back to veena_dummy and merge the lastet main into it:
+   git checkout veena_dummy
+   git merge main -m 'incorporating latest from main'
+   git push
+   ```
+   The `git merge` step may fail because there are conflicts between
+   your changes and those made to `main` that `git` cannot resolve.
+   In that case, `git` will ask you to first fix conflicts manaully
+   and then commit.  When that happens, you won't be able to do `git
+   push` yet.  Instead, you must edit the files to resolve the
+   conflicts.  When you open up one such file, you will see sections
+   with conflicts marked as follows:
+   ```
+   <<<<<<< ...
+   ... changes you made ...
+   =======
+   ... changes coming from the merge ...
+   >>>>>>> ...
+   ```
+   To resolve the conflicts, you may have to discard either your
+   changes or someone else's or doing a mixture of the two.  You will
+   also need to delete the lines with `<<<<<<<`, `=======`, and
+   `>>>>>>>`.  Once you are done with a file, `git add` it for commit.
+   At any point, you can run `git status` to see what changes have
+   already been staged for commit and what files remain unmerged.
+   After you are all done, commit, and finally push.
+
+## Running python files
+1. Lets make some more changes to the `dummy.py` file and run it. For this part, we will load X ray dataset from our common folder `/cwork/ad641` and run it.
+2. Open the `dummy.py` and copy following codes and save it:
+   ```
+   import torch
+   print("Hello Veena")
+   ```
+3. To run this in our terminal, we will need to run our Terminal on sigular image format. This helps us with common packages. Run following on the terminal:
+   ```
+   singularity shell --nv --bind /work:/work,/cwork:/cwork /opt/apps/containers/oit/jupyter/courses-jupyter-cuda.sif
+   ```
+   This should show "Apptainer>" on your terminal.
+3. Make sure the Apptainer is on the same directory as the python file using `pwd`. Now type
+   ```
+   python dummy.py
+   ```
+   This should print `Hello Veena`.
+
+
+## Running Jupyter notebook files
+1. Download Jupyter extension from Extension tab on Code server / VS code. It is the one from `ms-toolsai`
+2. Create a file `dummy.ipynb`.
+3. On the Terminal running on singular image format, type:
+   ```
+   jupyter server
+   ```
+   You will see some links like `http://127.0.0.1:8888/?token=c5df7f2d3a...`. Copy the one that you have on Terminal output.
+4. You will see `Kernal` on the right-top of opened `dummy.ipynb` file. Press it. You will be asked to choose existing kernel or type in the link. Choose the link and paste the one you copied earlier on the command pallet.
+5. Now it should be connected and ready to work!
+6. Copy following codes to `dummy.ipynb`:
+   ```
+   import os
+   import random
+   import matplotlib.pyplot as plt
+   import matplotlib.image as mpimg
+
+   # Path to your NIH Chest X-ray dataset
+   data_dir = "/cwork/ad641/project_MedImgClas/khanfashee/khanfashee"
+
+   # Recursively find all image files
+   all_images = []
+   for root, _, files in os.walk(data_dir):
+      for f in files:
+         if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+               all_images.append(os.path.join(root, f))
+
+   print(f"Found {len(all_images)} images.")
+
+   # Pick one random image
+   img_path = random.choice(all_images)
+   print("Displaying:", img_path)
+
+   # Load and show
+   img = mpimg.imread(img_path)
+   plt.figure(figsize=(6,6))
+   plt.imshow(img, cmap='gray')
+   plt.title(os.path.basename(img_path))
+   plt.axis('off')
+   plt.show()
+   ```
+7. Press run to see an X-ray image 🥳.
+
+## Merging your Edits into `main`
+
+1. Make sure that your branch is clean (you've committed and push all
+   the changes).  The last step of this process to open a "merge"
+   requeset to your teammates so your changes can be incorporated into
+   `main`.
+
+   **IMPORTANT:** This step is tricky for this tutorial because all
+   your teammates are working on the exact same feature (which
+   shouldn't happen in practice) so it wouldn't make sense for
+   everybody to merge.  As a team, to complete this tutorial, discuss
+   as a team what you'd like to do: you may elect one member to merge
+   his or her branch into `main`, or none will merge at all (because
+   your own project may not need this wishlist feature).  Depending on
+   what your team decides to do, you may skip Step 2 below and just to
+   go Step 3.
+
+2. To open a merge request, visit `https://gitlab.oit.duke.edu/`, find
+   your team's project repo, click on "Merge Requests" in the left
+   navigation bar, and then hit the blue "New merge request" button on
+   the top right.  Then:
+   * For the source branch, select `veena_dummy`.
+   * For the target branch, select `main`.
+   Once the merge request is created, ping your teammates to take a
+   look at it.  If they think it's acceptable, they just need to
+   approve the merge request and you are done!
+
+3. Now that you are done.  You should now delete your branch --- it's
+   considered a good `git` practice to delete a feature branch once
+   it's done, instead of reusing it for other purposes.  If the branch
+   has been merged, run:
+   ```
+   git branch -d veena_dummy
+   ```
+   Or if it hasn't been merged, run:
+   ```
+   git branch -D veena_dummy
+   ```
+   Then, delete that from the team repo as well:
+   ```
+   git push --delete origin veena_dummy
+   ```
+   :fireworks: Congrats on surviving this long tutorial!  Now get
+   started on your real project!
