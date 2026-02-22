@@ -42,9 +42,9 @@ def animate_pest(
         x = random.uniform(-x_range, x_range)
         y = random.uniform(-y_range, y_range)
 
-    if placement_mask is not None and not _is_valid_position(
+    if placement_mask is not None and _position_probability(
         x, y, placement_mask, plane_width, plane_height
-    ):
+    ) <= 1e-3:
         x, y = _sample_valid_world_position(placement_mask, plane_width, plane_height, margin)
 
     z = pest_obj.location.z  # keep height constant
@@ -62,7 +62,7 @@ def animate_pest(
             dy = random.uniform(-speed, speed)
             next_x = _clamp(x + dx, -x_range, x_range)
             next_y = _clamp(y + dy, -y_range, y_range)
-            if placement_mask is None or _is_valid_position(
+            if placement_mask is None or _accept_probabilistic_move(
                 next_x, next_y, placement_mask, plane_width, plane_height
             ):
                 x, y = next_x, next_y
@@ -100,10 +100,20 @@ def _load_mask(mask_path):
     return _MASK_CACHE[mask_path]
 
 
-def _is_valid_position(x, y, mask, plane_width, plane_height):
-    """Return True if a world-space point maps to a valid mask pixel."""
+def _position_probability(x, y, mask, plane_width, plane_height):
+    """Return placement probability for a world-space point (0..1)."""
     py, px = _world_to_mask_indices(x, y, mask, plane_width, plane_height)
-    return bool(mask["values"][py * mask["width"] + px])
+    return float(mask["values"][py * mask["width"] + px])
+
+
+def _accept_probabilistic_move(x, y, mask, plane_width, plane_height):
+    """Accept a move with probability given by the placement map at the target pixel."""
+    p = _position_probability(x, y, mask, plane_width, plane_height)
+    if p <= 0.0:
+        return False
+    if p >= 1.0:
+        return True
+    return random.random() < p
 
 
 def _world_to_mask_indices(x, y, mask, plane_width, plane_height):
@@ -121,11 +131,23 @@ def _world_to_mask_indices(x, y, mask, plane_width, plane_height):
 
 def _sample_valid_world_position(mask, plane_width, plane_height, margin):
     """Fallback sampler inside Blender if the provided start position is invalid."""
-    valid_coords = mask["valid_coords"]
-    if not valid_coords:
+    coords = mask["coords"]
+    cdf = mask["cdf"]
+    if not coords:
         return 0.0, 0.0
 
-    py, px = valid_coords[random.randrange(len(valid_coords))]
+    r = random.random()
+    idx = 0
+    lo = 0
+    hi = len(cdf) - 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if cdf[mid] < r:
+            lo = mid + 1
+        else:
+            hi = mid
+    idx = lo
+    py, px = coords[idx]
     h = mask["height"]
     w = mask["width"]
 
@@ -140,25 +162,39 @@ def _sample_valid_world_position(mask, plane_width, plane_height, margin):
 
 
 def _load_mask_from_image(mask_path):
-    """Load a grayscale/rgba mask image via Blender and cache binary pixels."""
+    """Load a grayscale/rgba placement probability map via Blender."""
     img = bpy.data.images.load(mask_path, check_existing=True)
     width, height = img.size[:2]
     pixels = list(img.pixels[:])  # flat RGBA floats in [0,1]
 
     values = []
-    valid_coords = []
+    coords = []
+    weights = []
     for py in range(height):
         row_offset = py * width
         for px in range(width):
             idx = (row_offset + px) * 4
-            is_valid = pixels[idx] > 0.5  # use red channel from saved grayscale mask
-            values.append(is_valid)
-            if is_valid:
-                valid_coords.append((py, px))
+            p = float(_clamp(pixels[idx], 0.0, 1.0))  # grayscale saved in red channel
+            values.append(p)
+            if p > 1e-3:
+                coords.append((py, px))
+                weights.append(p)
+
+    if weights:
+        total = sum(weights)
+        cdf = []
+        running = 0.0
+        for w in weights:
+            running += w / total
+            cdf.append(running)
+        cdf[-1] = 1.0
+    else:
+        cdf = []
 
     return {
         "width": int(width),
         "height": int(height),
         "values": values,
-        "valid_coords": valid_coords,
+        "coords": coords,
+        "cdf": cdf,
     }

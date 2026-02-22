@@ -26,14 +26,15 @@ from generator.config import (
     FPS,
 )
 from generator.depth_estimator import (
-    build_placement_mask,
+    build_surface_probability_map,
     compute_surface_normals,
     estimate_depth,
+    estimate_surface_normals_pretrained,
     save_depth_preview,
     save_mask_preview,
     save_probability_preview,
     save_surface_preview,
-    sample_pest_positions,
+    sample_pest_positions_from_probability,
 )
 
 
@@ -76,8 +77,9 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
     # Depth-aware placement (system Python side)
     depth_map = estimate_depth(image_path)
     save_depth_preview(depth_map, os.path.join(frames_dir, "depth_preview.jpg"))
-    normals = compute_surface_normals(depth_map)
-    save_surface_preview(normals, os.path.join(frames_dir, "surface_preview.jpg"))
+    normals = compute_surface_normals(depth_map)  # kept for existing preview/debug use
+    predicted_normals = estimate_surface_normals_pretrained(image_path)
+    save_surface_preview(predicted_normals, os.path.join(frames_dir, "surface_preview.jpg"))
     save_probability_preview(normals, os.path.join(frames_dir, "probability_preview.jpg"))
 
     mask_path_cache = {}
@@ -88,16 +90,16 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         mask_key = (pest_type, min_nz)
 
         if mask_key not in mask_cache:
-            mask = build_placement_mask(normals, min_nz)
-            mask_cache[mask_key] = mask
+            placement_prob = build_surface_probability_map(predicted_normals, min_nz)
+            mask_cache[mask_key] = placement_prob
             threshold_tag = str(min_nz).replace(".", "p")
             mask_path = os.path.join(
                 frames_dir, f"placement_mask_{pest_type}_{threshold_tag}.png"
             )
-            save_mask_preview(mask, mask_path)
+            save_mask_preview(placement_prob, mask_path)
             mask_path_cache[mask_key] = os.path.abspath(mask_path)
 
-        start_position = sample_pest_positions(
+        start_position = sample_pest_positions_from_probability(
             mask_cache[mask_key],
             n=1,
             plane_width=PLANE_WIDTH,

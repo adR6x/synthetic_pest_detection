@@ -75,9 +75,9 @@
             </div>
         </div>
 
-        {% if depth_preview_url or surface_preview_url or probability_preview_url %}
+        {% if depth_preview_url or surface_preview_url %}
         <div class="video-section">
-            <h3>Depth / Surface / Probability Previews</h3>
+            <h3>Depth / Surface Previews</h3>
             <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
                 {% if depth_preview_url %}
                 <div>
@@ -91,19 +91,13 @@
                     <img src="{{ surface_preview_url }}" width="320" alt="surface normals preview">
                 </div>
                 {% endif %}
-                {% if probability_preview_url %}
-                <div>
-                    <p style="margin:0 0 8px 0;"><strong>Placement Probability (nz)</strong></p>
-                    <img src="{{ probability_preview_url }}" width="320" alt="placement probability preview">
-                </div>
-                {% endif %}
             </div>
         </div>
         {% endif %}
 
         {% if placement_masks %}
         <div class="video-section">
-            <h3>Per-Pest Placement Masks Used</h3>
+            <h3>Per-Pest Placement Masks (Fed to Blender)</h3>
             <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
                 {% for mask in placement_masks %}
                 <div>
