@@ -15,10 +15,11 @@ def animate_pest(pest_obj, num_frames, plane_width, plane_height, speed):
         plane_height: Height of the kitchen plane (world units).
         speed: Step size per frame in world units.
     """
-    # Random starting position within the plane bounds
+    # Random starting position within the plane bounds.
+    # The plane goes from -plane_width/2 to +plane_width/2, so use half-dimensions.
     margin = 0.15
-    x_range = plane_width - margin
-    y_range = plane_height - margin
+    x_range = plane_width / 2.0 - margin
+    y_range = plane_height / 2.0 - margin
 
     x = random.uniform(-x_range, x_range)
     y = random.uniform(-y_range, y_range)

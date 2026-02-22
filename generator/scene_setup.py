@@ -70,8 +70,11 @@ def setup_camera(plane_width, plane_height):
     camera.rotation_euler = (0, 0, 0)  # looking down -Z
 
     camera.data.type = "ORTHO"
-    # Set ortho scale to cover the plane (use the larger dimension)
-    camera.data.ortho_scale = max(plane_width, plane_height) * 2
+    # ortho_scale = visible width in world units.
+    # The plane spans plane_width total, so set ortho_scale to match exactly.
+    # For 640x480 render (4:3) and plane_width/plane_height = 4:3, this fills
+    # the frame with no empty space.
+    camera.data.ortho_scale = plane_width
 
     bpy.context.scene.camera = camera
     return camera
