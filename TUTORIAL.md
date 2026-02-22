@@ -13,9 +13,11 @@ Starting Singular shell:
 singularity shell --nv --bind /work:/work,/cwork:/cwork /opt/apps/containers/oit/jupyter/courses-jupyter-cuda.sif
 ``` 
 
-## Setting up GitHub and Duke Cluster
+## Setting up GitHub and Duke Cluster/ PC / Mac
 
-Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
+Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster; or your correct working folder in PC / Mac.
+- For PC/Mac, you might have to install git and something called SSH. Jump to Step 3.
+- But try to run following codes before installing!
 
 1. We will first connect github to your duke cluster file system.
    Go to https://dcc-ondemand-01.oit.duke.edu/pun/sys/dashboard and 
@@ -25,7 +27,7 @@ Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
    with name `571_probab_ml`. Then enter the directory. You should see
    a button `>_ Open in Terminal` button on bar in second row, select it.
 
-3. Login on the new terminal tab. You are now in the couse shell.
+3. Login on the new terminal tab. You should be running powershell/terminal on the couse shell now.
 
 4. In your course shell, issue the following command to generate an
    SSH key for your container:
@@ -87,7 +89,7 @@ Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
 ## Working on the Project
 
 Let's say that you want to add a file "test.py" that will print "Hi Awesome people!"
-Or work on scripts just like you would do on your local VS code.
+Or work on scripts just like you would do on during the project.
 
 In order to accomplish this task, you will learn:
 
@@ -95,12 +97,14 @@ In order to accomplish this task, you will learn:
   you to work on this feature without stepping on your teammates'
   toes, and to integrate new feature into your team repo in the end;
 
-* Run python codes on Singular Shell so that you dont have to install
+* (Duke Cluster) Run python codes on Singular Shell so that you dont have to install
   required packages all the time.
+
+* (PC/Mac) Should be straight forward. Open VS code and jump to Step 2 below. 
 
 ## Creating a Python file and modifying the content
 
-1. Lets start Code Server on the cluster. This is VS code on web browser.
+1. (Duke Cluster) Lets start Code Server on the cluster. This is VS code on web browser.
    - Go to DCC website. Select on `Interactive Apps` -> `Code Server`
    - Select appropriate options. Then Launch.
    - You might have to wait for some time.
@@ -236,22 +240,23 @@ This step is analogous to making edits in files as we move ahead in the project.
    import torch
    print("Hi Awesome people")
    ```
-3. To run this in our terminal, we will need to run our Terminal on sigular image format. This helps us with common packages. Run following on the terminal:
+3. (Duke Cluster) To run this in terminal, we will need to run our Terminal on sigular image format. This helps us with common packages. Run following on the terminal:
    ```
    singularity shell --nv --bind /work:/work,/cwork:/cwork /opt/apps/containers/oit/jupyter/courses-jupyter-cuda.sif
    ```
    This should show "Apptainer>" on your terminal.
-3. Make sure the Apptainer is on the same directory as the python file using `pwd`. Now type
+3. (Duke Cluster) Make sure the Apptainer is on the same directory as the python file using `pwd`. Now type
    ```
    python test.py
    ```
    This should print `Hi Awesome people`.
+4. For PC/Mac, you should be able to simply run on the terminal after installing required packages.
 
 
 ## Running Jupyter notebook files
 1. Download Jupyter extension from Extension tab on Code server / VS code. It is the one from `ms-toolsai`
 2. Create a file `test.ipynb`.
-3. On the Terminal running on singular image format, type:
+3. If you are on Duke Cluster you have to be running SINGULAR IMAGE FORMAT on terminal, else normal is okay, type:
    ```
    jupyter server
    ```
