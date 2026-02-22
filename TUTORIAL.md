@@ -13,7 +13,7 @@ Starting Singular shell:
 singularity shell --nv --bind /work:/work,/cwork:/cwork /opt/apps/containers/oit/jupyter/courses-jupyter-cuda.sif
 ``` 
 
-## Setting up
+## Setting up GitHub and Duke Cluster
 
 Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
 
@@ -84,9 +84,10 @@ Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
 
 10. You are all set.
 
-## Overview and goal
+## Working on the Project
 
-Let's say that you want to add a file "dummy.py" that will print "Hi !"
+Let's say that you want to add a file "test.py" that will print "Hi Awesome people!"
+Or work on scripts just like you would do on your local VS code.
 
 In order to accomplish this task, you will learn:
 
@@ -94,31 +95,37 @@ In order to accomplish this task, you will learn:
   you to work on this feature without stepping on your teammates'
   toes, and to integrate new feature into your team repo in the end;
 
-## Making your feature branch
-
-First, you want to create a "branch" to work on this new feature.
-Your team repo has a `main` branch that holds the "definitive" version
-of your project.  Creating a separate branch allows you to work making
-your changes to code in a protected environment where you and your
-teammates can work on things independently without stepping on each
-other's toes.  Pick a name for your branch that's meaningful to your
-team, say `veena_dummy` (replace `veena` with your own name to avoid
-nameclash with your teammates), create it, switch to it, and tell the
-team repo about it:
-```
-git branch veena_dummy
-git checkout veena_dummy
-git push --set-upstream origin veena_dummy
-```
-We will walk you through the steps of checking in code changes next.
+* Run python codes on Singular Shell so that you dont have to install
+  required packages all the time.
 
 ## Creating a Python file and modifying the content
 
-1. At this point you should have a codeserver/VS code running.
-2. From the folders tab, create a new file named "dummy.py".
+1. Lets start Code Server on the cluster. This is VS code on web browser.
+   - Go to DCC website. Select on `Interactive Apps` -> `Code Server`
+   - Select appropriate options. Then Launch.
+   - You might have to wait for some time.
+   - Change Code Server working folder to `571_probab_ml/synthetic_data_gen_pest`.
+     
+2. First, you want to create a "branch" to work on this new feature.
+   Your team repo has a `main` branch that holds the "definitive" version
+   of your project.  Creating a separate branch allows you to work making
+   your changes to code in a protected environment where you and your
+   teammates can work on things independently without stepping on each
+   other's toes.  Pick a name for your branch that's meaningful to your
+   team, say `test_XXX` (replace `XXX` with your own name to avoid
+   nameclash with your teammates), create it, switch to it, and tell the
+   team repo about it:
+   ```
+   git branch test_XXX
+   git checkout test_XXX
+   git push --set-upstream origin test_XXX
+   ```
+   We will walk you through the steps of checking in code changes next.
+
+3. From the folders tab, create a new file named "test.py".
 3. Open the file and type:
    ```
-   print("Hi Veena")
+   print("Hi Awesome people")
    ```
 4. Save the file
 
@@ -142,8 +149,8 @@ This step is analogous to making edits in files as we move ahead in the project.
    ```
    git status
    ```
-   You should see that you are currently on the `veena_dummy`
-   branch, and you have "untracked" `dummy.py` file. You can add all
+   You should see that you are currently on the `test_XXX`
+   branch, and you have "untracked" `test.py` file. You can add all
    modifications into a staging area for commit in one go:
    ```
    git add -u
@@ -152,7 +159,7 @@ This step is analogous to making edits in files as we move ahead in the project.
    one is really needed (as opposed to some temporary/sensitive file
    that shouldn't be checked in).  For example:
    ```
-   git add dummy.py
+   git add test.py
    ```
    You can use the `git status` again to see where things stand.  It
    will show which files you've already added to the staging area for
@@ -160,7 +167,7 @@ This step is analogous to making edits in files as we move ahead in the project.
 
 3. To commit, issue the following command:
    ```
-   git commit -m "adding python file name dummy.py"
+   git commit -m "adding python file name test.py"
    ```
    Here, use the message in quotes to describe your changes briefly.
    Congrats!  You made your first commit (at least in your local
@@ -196,7 +203,7 @@ This step is analogous to making edits in files as we move ahead in the project.
    git checkout main
    git pull
    # then, go back to veena_dummy and merge the lastet main into it:
-   git checkout veena_dummy
+   git checkout test_XXX
    git merge main -m 'incorporating latest from main'
    git push
    ```
@@ -223,11 +230,11 @@ This step is analogous to making edits in files as we move ahead in the project.
    After you are all done, commit, and finally push.
 
 ## Running python files
-1. Lets make some more changes to the `dummy.py` file and run it. For this part, we will load X ray dataset from our common folder `/cwork/ad641` and run it.
-2. Open the `dummy.py` and copy following codes and save it:
+1. Lets make some more changes to the `test.py` file and run it.
+2. Open the `test.py` and copy following codes and save it:
    ```
    import torch
-   print("Hello Veena")
+   print("Hi Awesome people")
    ```
 3. To run this in our terminal, we will need to run our Terminal on sigular image format. This helps us with common packages. Run following on the terminal:
    ```
@@ -236,55 +243,24 @@ This step is analogous to making edits in files as we move ahead in the project.
    This should show "Apptainer>" on your terminal.
 3. Make sure the Apptainer is on the same directory as the python file using `pwd`. Now type
    ```
-   python dummy.py
+   python test.py
    ```
-   This should print `Hello Veena`.
+   This should print `Hi Awesome people`.
 
 
 ## Running Jupyter notebook files
 1. Download Jupyter extension from Extension tab on Code server / VS code. It is the one from `ms-toolsai`
-2. Create a file `dummy.ipynb`.
+2. Create a file `test.ipynb`.
 3. On the Terminal running on singular image format, type:
    ```
    jupyter server
    ```
    You will see some links like `http://127.0.0.1:8888/?token=c5df7f2d3a...`. Copy the one that you have on Terminal output.
-4. You will see `Kernal` on the right-top of opened `dummy.ipynb` file. Press it. You will be asked to choose existing kernel or type in the link. Choose the link and paste the one you copied earlier on the command pallet.
+4. You will see `Kernal` on the right-top of opened `test.ipynb` file. Press it. You will be asked to choose existing kernel or type in the link. Choose the link and paste the one you copied earlier on the command pallet.
 5. Now it should be connected and ready to work!
-6. Copy following codes to `dummy.ipynb`:
-   ```
-   import os
-   import random
-   import matplotlib.pyplot as plt
-   import matplotlib.image as mpimg
+7. You are the greatest person ever to alive for reading this tutorial until this point. You deserve all the happiness life can offer!! 🥳
 
-   # Path to your NIH Chest X-ray dataset
-   data_dir = "/cwork/ad641/project_MedImgClas/khanfashee/khanfashee"
-
-   # Recursively find all image files
-   all_images = []
-   for root, _, files in os.walk(data_dir):
-      for f in files:
-         if f.lower().endswith(('.png', '.jpg', '.jpeg')):
-               all_images.append(os.path.join(root, f))
-
-   print(f"Found {len(all_images)} images.")
-
-   # Pick one random image
-   img_path = random.choice(all_images)
-   print("Displaying:", img_path)
-
-   # Load and show
-   img = mpimg.imread(img_path)
-   plt.figure(figsize=(6,6))
-   plt.imshow(img, cmap='gray')
-   plt.title(os.path.basename(img_path))
-   plt.axis('off')
-   plt.show()
-   ```
-7. Press run to see an X-ray image 🥳.
-
-## Merging your Edits into `main`
+## Merging your Edits into `main`. I still have not figured this out please do not follow instructions bellow!!
 
 1. Make sure that your branch is clean (you've committed and push all
    the changes).  The last step of this process to open a "merge"
