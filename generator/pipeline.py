@@ -10,23 +10,30 @@ import subprocess
 import uuid
 
 import cv2
-
 from generator.config import (
     FRAMES_DIR,
     LABELS_DIR,
     MAX_PESTS,
     MIN_PESTS,
     NUM_FRAMES,
-    OUTPUT_DIR,
     PEST_PARAMS,
     PEST_TYPES,
     PLANE_HEIGHT,
     PLANE_WIDTH,
     RENDER_HEIGHT,
     RENDER_WIDTH,
-    UPLOAD_DIR,
     VIDEOS_DIR,
     FPS,
+)
+from generator.depth_estimator import (
+    build_placement_mask,
+    compute_surface_normals,
+    estimate_depth,
+    save_depth_preview,
+    save_mask_preview,
+    save_probability_preview,
+    save_surface_preview,
+    sample_pest_positions,
 )
 
 
@@ -52,12 +59,12 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
 
     os.makedirs(frames_dir, exist_ok=True)
     os.makedirs(labels_dir, exist_ok=True)
-    os.makedirs(VIDEOS_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(video_path), exist_ok=True)
 
     # Choose random pests
     num_pests = random.randint(MIN_PESTS, MAX_PESTS)
     pest_configs = []
-    for i in range(num_pests):
+    for _ in range(num_pests):
         pest_type = random.choice(PEST_TYPES)
         params = dict(PEST_PARAMS[pest_type])
         # Convert tuples to lists for JSON serialization
@@ -65,6 +72,39 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
             if params[key] is not None:
                 params[key] = list(params[key])
         pest_configs.append({"type": pest_type, "params": params})
+
+    # Depth-aware placement (system Python side)
+    depth_map = estimate_depth(image_path)
+    save_depth_preview(depth_map, os.path.join(frames_dir, "depth_preview.jpg"))
+    normals = compute_surface_normals(depth_map)
+    save_surface_preview(normals, os.path.join(frames_dir, "surface_preview.jpg"))
+    save_probability_preview(normals, os.path.join(frames_dir, "probability_preview.jpg"))
+
+    mask_path_cache = {}
+    mask_cache = {}
+    for pest_cfg in pest_configs:
+        pest_type = pest_cfg["type"]
+        min_nz = float(pest_cfg["params"].get("min_nz", 0.8))
+        mask_key = (pest_type, min_nz)
+
+        if mask_key not in mask_cache:
+            mask = build_placement_mask(normals, min_nz)
+            mask_cache[mask_key] = mask
+            threshold_tag = str(min_nz).replace(".", "p")
+            mask_path = os.path.join(
+                frames_dir, f"placement_mask_{pest_type}_{threshold_tag}.png"
+            )
+            save_mask_preview(mask, mask_path)
+            mask_path_cache[mask_key] = os.path.abspath(mask_path)
+
+        start_position = sample_pest_positions(
+            mask_cache[mask_key],
+            n=1,
+            plane_width=PLANE_WIDTH,
+            plane_height=PLANE_HEIGHT,
+        )[0]
+        pest_cfg["start_position"] = [float(start_position[0]), float(start_position[1])]
+        pest_cfg["placement_mask_path"] = mask_path_cache[mask_key]
 
     # Build config for Blender
     config = {
@@ -101,6 +141,8 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         raise RuntimeError(f"Blender failed with return code {result.returncode}")
 
     print(result.stdout)
+    if result.stderr.strip():
+        print(f"Blender stderr (non-fatal): {result.stderr}")
 
     # Assemble frames into MP4
     _assemble_video(frames_dir, video_path)

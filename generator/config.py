@@ -8,6 +8,9 @@ RENDER_HEIGHT = 480
 FPS = 2
 NUM_FRAMES = 10
 
+# Depth estimation model (runs in system Python, not Blender)
+DEPTH_MODEL = "depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf"
+
 # Output directories (relative to project root)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
@@ -26,6 +29,7 @@ PEST_PARAMS = {
         "head_offset": (0.13, 0.0, 0.01),
         "color": (0.45, 0.35, 0.25, 1.0),
         "speed": 0.08,
+        "min_nz": 0.5,
     },
     "rat": {
         "body_scale": (0.18, 0.09, 0.07),
@@ -33,6 +37,7 @@ PEST_PARAMS = {
         "head_offset": (0.19, 0.0, 0.015),
         "color": (0.35, 0.25, 0.18, 1.0),
         "speed": 0.06,
+        "min_nz": 0.8,
     },
     "cockroach": {
         "body_scale": (0.08, 0.04, 0.015),
@@ -40,6 +45,7 @@ PEST_PARAMS = {
         "head_offset": None,
         "color": (0.25, 0.12, 0.05, 1.0),
         "speed": 0.12,
+        "min_nz": 0.1,
     },
 }
 

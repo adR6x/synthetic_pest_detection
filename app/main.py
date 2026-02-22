@@ -4,10 +4,13 @@ import json
 import os
 import shutil
 import tempfile
+import threading
+import time
 
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash
 
 from generator.config import UPLOAD_DIR, FRAMES_DIR, VIDEOS_DIR, LABELS_DIR, OUTPUT_DIR
+from generator.depth_estimator import preload_depth_model
 from generator.pipeline import generate_video
 
 # --- Testing mode: use temp directory instead of outputs/ ---
@@ -29,6 +32,20 @@ app.secret_key = "synthetic-pest-gen-dev-key"
 # Ensure output directories exist
 for d in [UPLOAD_DIR, FRAMES_DIR, VIDEOS_DIR, LABELS_DIR]:
     os.makedirs(d, exist_ok=True)
+
+
+def _background_warm_depth_model():
+    start = time.time()
+    try:
+        print("Depth model warmup started...")
+        preload_depth_model(run_warmup_inference=False)
+        print(f"Depth model warmup complete in {time.time() - start:.1f}s")
+    except Exception as e:
+        print(f"WARNING: Depth model warmup failed: {e}")
+
+
+# Warm the model in the background so the first generation request is faster.
+threading.Thread(target=_background_warm_depth_model, daemon=True).start()
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "webp"}
 
@@ -77,12 +94,21 @@ def results(job_id):
     video_path = os.path.join(VIDEOS_DIR, f"{job_id}.mp4")
     frames_dir = os.path.join(FRAMES_DIR, job_id)
     labels_dir = os.path.join(LABELS_DIR, job_id)
+    depth_preview_path = os.path.join(frames_dir, "depth_preview.jpg")
+    surface_preview_path = os.path.join(frames_dir, "surface_preview.jpg")
+    probability_preview_path = os.path.join(frames_dir, "probability_preview.jpg")
 
     if not os.path.exists(video_path):
         flash("Job not found.")
         return redirect(url_for("index"))
 
-    frames = sorted(f for f in os.listdir(frames_dir) if f.endswith(".png"))
+    all_job_files = sorted(os.listdir(frames_dir))
+    frames = sorted(
+        f for f in all_job_files if f.startswith("frame_") and f.endswith(".png")
+    )
+    placement_masks = sorted(
+        f for f in all_job_files if f.startswith("placement_mask_") and f.endswith(".png")
+    )
 
     # Load per-frame labels
     labels_by_frame = {}
@@ -97,6 +123,29 @@ def results(job_id):
         "index.html",
         job_id=job_id,
         video_url=url_for("serve_video", job_id=job_id),
+        depth_preview_url=(
+            url_for("serve_frame", job_id=job_id, filename="depth_preview.jpg")
+            if os.path.exists(depth_preview_path)
+            else None
+        ),
+        surface_preview_url=(
+            url_for("serve_frame", job_id=job_id, filename="surface_preview.jpg")
+            if os.path.exists(surface_preview_path)
+            else None
+        ),
+        probability_preview_url=(
+            url_for("serve_frame", job_id=job_id, filename="probability_preview.jpg")
+            if os.path.exists(probability_preview_path)
+            else None
+        ),
+        placement_masks=[
+            {
+                "filename": fname,
+                "url": url_for("serve_frame", job_id=job_id, filename=fname),
+                "label": fname.replace("placement_mask_", "").replace(".png", ""),
+            }
+            for fname in placement_masks
+        ],
         frames=frames,
         labels_json=json.dumps(labels_by_frame),
     )

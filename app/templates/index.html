@@ -75,6 +75,46 @@
             </div>
         </div>
 
+        {% if depth_preview_url or surface_preview_url or probability_preview_url %}
+        <div class="video-section">
+            <h3>Depth / Surface / Probability Previews</h3>
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+                {% if depth_preview_url %}
+                <div>
+                    <p style="margin:0 0 8px 0;"><strong>Predicted Depth</strong></p>
+                    <img src="{{ depth_preview_url }}" width="320" alt="predicted depth preview">
+                </div>
+                {% endif %}
+                {% if surface_preview_url %}
+                <div>
+                    <p style="margin:0 0 8px 0;"><strong>Surface Normals</strong></p>
+                    <img src="{{ surface_preview_url }}" width="320" alt="surface normals preview">
+                </div>
+                {% endif %}
+                {% if probability_preview_url %}
+                <div>
+                    <p style="margin:0 0 8px 0;"><strong>Placement Probability (nz)</strong></p>
+                    <img src="{{ probability_preview_url }}" width="320" alt="placement probability preview">
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if placement_masks %}
+        <div class="video-section">
+            <h3>Per-Pest Placement Masks Used</h3>
+            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+                {% for mask in placement_masks %}
+                <div>
+                    <p style="margin:0 0 8px 0;"><strong>{{ mask.label }}</strong></p>
+                    <img src="{{ mask.url }}" width="320" alt="placement mask {{ mask.label }}">
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <script>
             const frameSrcs = [
                 {% for frame in frames %}

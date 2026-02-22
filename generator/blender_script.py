@@ -6,7 +6,6 @@ Coordinates scene setup, pest creation, animation, rendering, and labeling.
 
 import json
 import os
-import random
 import sys
 
 # Add this script's directory to sys.path so we can import sibling modules
@@ -61,21 +60,30 @@ def main():
 
     # 2. Create pests
     pests = []  # list of (pest_type, pest_object)
+    pest_entries = []  # list of (pest_cfg, pest_object)
     for i, pest_cfg in enumerate(pest_configs):
         pest_type = pest_cfg["type"]
         params = pest_cfg["params"]
         pest_obj = create_pest(pest_type, params, i)
         pests.append((pest_type, pest_obj))
+        pest_entries.append((pest_cfg, pest_obj))
 
     # 3. Animate pests
     scene = bpy.context.scene
     scene.frame_start = 1
     scene.frame_end = num_frames
 
-    for pest_type, pest_obj in pests:
-        pest_cfg = next(p for p in pest_configs if p["type"] == pest_type)
+    for pest_cfg, pest_obj in pest_entries:
         speed = pest_cfg["params"].get("speed", 0.08)
-        animate_pest(pest_obj, num_frames, plane_width, plane_height, speed)
+        animate_pest(
+            pest_obj,
+            num_frames,
+            plane_width,
+            plane_height,
+            speed,
+            start_position=pest_cfg.get("start_position"),
+            placement_mask_path=pest_cfg.get("placement_mask_path"),
+        )
 
     # 4. Render each frame and generate labels
     for frame in range(1, num_frames + 1):
