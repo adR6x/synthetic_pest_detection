@@ -22,37 +22,156 @@
         {% endwith %}
 
         <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
-            <label for="image" class="file-label">
+            <label for="image" class="file-label" id="file-label">
                 Choose kitchen image
                 <input type="file" id="image" name="image" accept="image/*">
             </label>
-            <button type="submit" class="btn">Generate Video</button>
+            <span id="file-name" class="file-name"></span>
+            <button type="submit" class="btn" id="generate-btn" disabled>Generate Video</button>
         </form>
+        <img id="preview" class="preview-img" style="display:none;" alt="preview">
+
+        <script>
+            document.getElementById("image").addEventListener("change", function() {
+                const file = this.files[0];
+                const nameEl = document.getElementById("file-name");
+                const btn = document.getElementById("generate-btn");
+                const preview = document.getElementById("preview");
+                const label = document.getElementById("file-label");
+                if (file) {
+                    nameEl.textContent = file.name;
+                    btn.disabled = false;
+                    label.classList.add("file-selected");
+                    // Show thumbnail preview
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        preview.src = e.target.result;
+                        preview.style.display = "block";
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    nameEl.textContent = "";
+                    btn.disabled = true;
+                    label.classList.remove("file-selected");
+                    preview.style.display = "none";
+                }
+            });
+        </script>
 
         {% if job_id %}
         <hr>
         <h2>Results: {{ job_id }}</h2>
 
-        <div class="video-section">
-            <h3>Generated Video</h3>
-            <video controls width="640">
-                <source src="{{ video_url }}" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-        </div>
-
         {% if frames %}
-        <div class="frames-section">
-            <h3>Individual Frames</h3>
-            <div class="frame-gallery">
-                {% for frame in frames %}
-                <div class="frame-card">
-                    <img src="{{ url_for('serve_frame', job_id=job_id, filename=frame) }}" alt="{{ frame }}">
-                    <span>{{ frame }}</span>
+        <div class="video-section">
+            <h3>Animated Preview</h3>
+            <div class="player-wrapper" style="position:relative; display:inline-block;">
+                <img id="player" src="{{ url_for('serve_frame', job_id=job_id, filename=frames[0]) }}" width="640" alt="frame">
+                <canvas id="bbox-canvas" width="640" height="480" style="position:absolute; top:0; left:0; pointer-events:none;"></canvas>
+                <div class="player-controls">
+                    <button id="play-btn" class="btn" onclick="togglePlay()">Play</button>
+                    <span id="frame-counter">1 / {{ frames|length }}</span>
                 </div>
-                {% endfor %}
             </div>
         </div>
+
+        <script>
+            const frameSrcs = [
+                {% for frame in frames %}
+                "{{ url_for('serve_frame', job_id=job_id, filename=frame) }}",
+                {% endfor %}
+            ];
+            const frameNames = [
+                {% for frame in frames %}
+                "{{ frame }}",
+                {% endfor %}
+            ];
+            const labelsData = {{ labels_json|safe if labels_json else '{}' }};
+
+            const PEST_COLORS = {
+                "mouse": "#00ff00",
+                "rat": "#ff6600",
+                "cockroach": "#ff0000",
+            };
+
+            let currentFrame = 0;
+            let playing = false;
+            let timer = null;
+
+            function drawBboxes(frameIdx) {
+                const canvas = document.getElementById("bbox-canvas");
+                const img = document.getElementById("player");
+                const ctx = canvas.getContext("2d");
+
+                // Match canvas size to displayed image
+                canvas.width = img.clientWidth;
+                canvas.height = img.clientHeight;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const label = labelsData[frameNames[frameIdx]];
+                if (!label || !label.annotations) return;
+
+                // Scale factor from original (640x480) to displayed size
+                const scaleX = canvas.width / (label.width || 640);
+                const scaleY = canvas.height / (label.height || 480);
+
+                for (const ann of label.annotations) {
+                    const [x1, y1, x2, y2] = ann.bbox;
+                    const sx = x1 * scaleX;
+                    const sy = y1 * scaleY;
+                    const sw = (x2 - x1) * scaleX;
+                    const sh = (y2 - y1) * scaleY;
+
+                    const color = PEST_COLORS[ann.pest_type] || "#ffffff";
+
+                    // Draw bounding box
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(sx, sy, sw, sh);
+
+                    // Draw label background
+                    const text = ann.pest_type;
+                    ctx.font = "bold 14px sans-serif";
+                    const textW = ctx.measureText(text).width;
+                    ctx.fillStyle = color;
+                    ctx.fillRect(sx, sy - 20, textW + 8, 20);
+
+                    // Draw label text
+                    ctx.fillStyle = "#000";
+                    ctx.fillText(text, sx + 4, sy - 5);
+                }
+            }
+
+            function showFrame(idx) {
+                document.getElementById("player").src = frameSrcs[idx];
+                document.getElementById("frame-counter").textContent =
+                    (idx + 1) + " / " + frameSrcs.length;
+                // Draw bboxes after image loads
+                document.getElementById("player").onload = function() {
+                    drawBboxes(idx);
+                };
+            }
+
+            function togglePlay() {
+                playing = !playing;
+                document.getElementById("play-btn").textContent = playing ? "Pause" : "Play";
+                if (playing) {
+                    timer = setInterval(nextFrame, 500);
+                } else {
+                    clearInterval(timer);
+                }
+            }
+
+            function nextFrame() {
+                currentFrame = (currentFrame + 1) % frameSrcs.length;
+                showFrame(currentFrame);
+            }
+
+            // Draw bboxes on first frame once it loads
+            document.getElementById("player").onload = function() {
+                drawBboxes(0);
+            };
+        </script>
         {% endif %}
         {% endif %}
     </div>

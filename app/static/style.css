@@ -67,8 +67,31 @@ h1 {
     font-size: 1rem;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
     background: #0b5ed7;
+}
+
+.btn:disabled {
+    background: #9ec5fe;
+    cursor: not-allowed;
+}
+
+.file-name {
+    font-size: 0.9rem;
+    color: #198754;
+    font-weight: 500;
+}
+
+.file-selected {
+    background: #d1e7dd;
+    border: 1px solid #198754;
+}
+
+.preview-img {
+    max-width: 320px;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 hr {

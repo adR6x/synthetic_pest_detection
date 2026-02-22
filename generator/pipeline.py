@@ -30,12 +30,15 @@ from generator.config import (
 )
 
 
-def generate_video(image_path, job_id=None):
+def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, videos_root=None):
     """Run the full generation pipeline for one kitchen image.
 
     Args:
         image_path: Absolute path to the uploaded kitchen image.
         job_id: Optional job identifier. Generated if not provided.
+        frames_root: Override for frames output directory.
+        labels_root: Override for labels output directory.
+        videos_root: Override for videos output directory.
 
     Returns:
         Dict with job_id, video_path, frames_dir, labels_dir.
@@ -43,9 +46,9 @@ def generate_video(image_path, job_id=None):
     if job_id is None:
         job_id = uuid.uuid4().hex[:8]
 
-    frames_dir = os.path.join(FRAMES_DIR, job_id)
-    labels_dir = os.path.join(LABELS_DIR, job_id)
-    video_path = os.path.join(VIDEOS_DIR, f"{job_id}.mp4")
+    frames_dir = os.path.join(frames_root or FRAMES_DIR, job_id)
+    labels_dir = os.path.join(labels_root or LABELS_DIR, job_id)
+    video_path = os.path.join(videos_root or VIDEOS_DIR, f"{job_id}.mp4")
 
     os.makedirs(frames_dir, exist_ok=True)
     os.makedirs(labels_dir, exist_ok=True)
