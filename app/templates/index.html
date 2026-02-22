@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synthetic Pest Video Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Synthetic Pest Video Generator</h1>
+        <p class="subtitle">Upload a kitchen image to generate synthetic pest detection training data.</p>
+
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="flash">
+            {% for message in messages %}
+            <p>{{ message }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
+            <label for="image" class="file-label">
+                Choose kitchen image
+                <input type="file" id="image" name="image" accept="image/*">
+            </label>
+            <button type="submit" class="btn">Generate Video</button>
+        </form>
+
+        {% if job_id %}
+        <hr>
+        <h2>Results: {{ job_id }}</h2>
+
+        <div class="video-section">
+            <h3>Generated Video</h3>
+            <video controls width="640">
+                <source src="{{ video_url }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        {% if frames %}
+        <div class="frames-section">
+            <h3>Individual Frames</h3>
+            <div class="frame-gallery">
+                {% for frame in frames %}
+                <div class="frame-card">
+                    <img src="{{ url_for('serve_frame', job_id=job_id, filename=frame) }}" alt="{{ frame }}">
+                    <span>{{ frame }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+</body>
+</html>
