@@ -17,10 +17,17 @@ singularity shell --nv --bind /work:/work,/cwork:/cwork /opt/apps/containers/oit
 
 Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
 
-1. Open this page on your laptop web browser and login with Duke NetID
-   login: https://gitlab.oit.duke.edu/-/user_settings/ssh_keys
+1. We will first connect github to your duke cluster file system.
+   Go to https://dcc-ondemand-01.oit.duke.edu/pun/sys/dashboard and 
+   login with your NetID.
 
-2. In your course shell, issue the following command to generate an
+2. On the top bar select `Files` -> `Home Directory`. Create new folder
+   with name `571_probab_ml`. Then enter the directory. You should see
+   a button `>_ Open in Terminal` button on bar in second row, select it.
+
+3. Login on the new terminal tab. You are now in the couse shell.
+
+4. In your course shell, issue the following command to generate an
    SSH key for your container:
    ```
    ssh-keygen -t ed25519 -C "My probablilistic ml Key"
@@ -32,7 +39,7 @@ Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
    passphrase again, just press Enter/Return again.  An ASCII image
    will appear in the Terminal, disregard that.
 
-3. Now, we need to view the SSH key you generated. Run this command in
+5. Now, we need to view the SSH key you generated. Run this command in
    your course shell:
    ```
    cat ~/.ssh/id_ed25519.pub
@@ -41,22 +48,20 @@ Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
    `My probablilistic ML Key`, and contains lots of random
    characters in between.
 
-4. Highlight and copy the entire public SSH key beginning with
-   `ssh-ed25519` and ending with `My project_medimgclas Key`
-   (inclusive).  Go to the page you opened on your browser from
-   Step 1, press "Add new key", and then paste the public SSH key
-   into the big text box on the page.
-   - Set the Title to be "My CompSci 516 Container Key".
-   - Set the Expiration Date to some time long after this course is
-     over.
-   Press "Add key" and you should be brought to a screen that confirms
-   that the key was added to GitLab.
+6. Highlight and copy the entire public SSH key beginning with
+   `ssh-ed25519` and ending with `My probablilistic ML Key`
+   (inclusive). Go to your Github Account Settings. You will find this
+   by clicking on you Profile Pic on top right corner. Select `Settings` -> `SSH and GPG keys` -> `New SSH key`.
+   - Set the Title to be "My Probablistic ML Key", or your liking.
+   - Paste the copied public SSH key to text box `key`
+   Press "Add SSH key" and you should be brought to a screen that confirms
+   that the key was added to GitHub.
    > Note: The entire key should be copied as one single line, i.e.,
      with no line break (other than the fact that the long line may
      automatically wrap around).  If for some reason you end up with
      an extra line break, just delete that (but no other character).
 
-5. In your course shell, run the following commands to set up `git`
+7. In your course shell, run the following commands to set up `git`
    (replace `your_netid` and `your_name` below with appropriate
    values):
    ```
@@ -64,34 +69,24 @@ Course shell here refers to your directory /hpc/<net_id>/ in Duke cluster.
    git config --global user.name "your_name"
    ```
 
-6. We will create a directory in your container to store data/code
-   from the course:
-   ```
-   mkdir -p project_MedImgClas
-   ```
-
-7. Now, we are ready to pull the latest data/code from the course for
+8. Now, we are ready to pull the latest data/code from the course for
    the first time:
    ```
-   git clone <Git link you need to clone> project_MedImgClas
+   git clone git@github.com:Mirsaid-ai/Synthetic-Data-Generation-for-Pest-Detection.git synthetic_data_gen_pest
    ```
-   If you see some message like "The authenticity of host
-   'gitlab.oit.duke.edu (...)' can't be established", it is okay to
-   answer "yes" to continue connecting; you shouldn't see this message
-   again following this initial connection. If all goes well, you
-   should now see some contents in `project_MedImgClas`, which you can verify
+   If all goes well, you should now see some contents in `synthetic_data_gen_pest`, which you can verify
    using:
    ```
-   ls project_MedImgClas
+   ls synthetic_data_gen_pest
    ```
    If this doesn't show any contents, there might be something wrong with
-   your SSH key. Try Steps 3 and 4 above again.
+   your SSH key.
 
-8. You are all set.
+10. You are all set.
 
 ## Overview and goal
 
-Let's say that you want to add a file "dummy.py" that will print "Hi Veena!"
+Let's say that you want to add a file "dummy.py" that will print "Hi !"
 
 In order to accomplish this task, you will learn:
 
