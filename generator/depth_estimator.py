@@ -33,6 +33,18 @@ _M3D_MEAN = np.array([123.675, 116.28, 103.53], dtype=np.float32)
 _M3D_STD  = np.array([58.395,  57.12,  57.375],  dtype=np.float32)
 
 
+def _cuda_available():
+    """Return True only if CUDA is both compiled-in and actually usable at runtime."""
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return False
+        torch.cuda.init()
+        return torch.cuda.device_count() > 0
+    except Exception:
+        return False
+
+
 def _get_metric3d_model():
     """Lazily load and cache the Metric3D v2 ViT-small model (process-local)."""
     global _METRIC3D_MODEL
@@ -43,7 +55,7 @@ def _get_metric3d_model():
                 model = torch.hub.load(
                     "YvanYin/Metric3D", "metric3d_vit_small", pretrain=True
                 )
-                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                device = torch.device("cuda" if _cuda_available() else "cpu")
                 model = model.to(device)
                 model.eval()
                 _METRIC3D_MODEL = model
@@ -388,10 +400,10 @@ def compute_inference_strategy():
     """
     try:
         import torch
-        if not torch.cuda.is_available():
+        if not _cuda_available():
             return "parallel"
         return "parallel" if torch.cuda.device_count() > 1 else "sequential"
-    except ImportError:
+    except Exception:
         return "parallel"
 
 
