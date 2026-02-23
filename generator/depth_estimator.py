@@ -53,6 +53,43 @@ def _cuda_available():
         return False
 
 
+def _patch_metric3d_for_device(model, device):
+    """Monkey-patch hardcoded device='cuda' calls inside Metric3D for CPU inference.
+
+    Metric3D's RAFTDepthNormalDPTDecoder5.get_bins() creates tensors with
+    device='cuda' hardcoded. We replace it with a version that queries the
+    actual device the model lives on, so it works on CPU too.
+    """
+    import types
+    import math as _math
+
+    for module in model.modules():
+        if callable(getattr(module, "get_bins", None)) and hasattr(module, "min_val"):
+            def _get_bins(self, bins_num):
+                import torch as _torch
+                _device = next(self.parameters()).device
+                vec = _torch.linspace(
+                    _math.log(self.min_val), _math.log(self.max_val),
+                    bins_num, device=_device,
+                )
+                return _torch.exp(vec)
+            module.get_bins = types.MethodType(_get_bins, module)
+
+        # HourGlassDecoder.create_mesh_grid also defaults to device='cuda'
+        if callable(getattr(module, "create_mesh_grid", None)):
+            def _create_mesh_grid(self, height, width, batch, device=None, set_buffer=True):
+                import torch as _torch
+                if device is None:
+                    device = next(self.parameters()).device
+                xs = _torch.linspace(0, width - 1, width, device=device)
+                ys = _torch.linspace(0, height - 1, height, device=device)
+                ys, xs = _torch.meshgrid(ys, xs, indexing="ij")
+                meshgrid = _torch.stack([xs, ys], dim=-1)          # (H, W, 2)
+                meshgrid = meshgrid.unsqueeze(0).expand(batch, -1, -1, -1)
+                return meshgrid
+            module.create_mesh_grid = types.MethodType(_create_mesh_grid, module)
+
+
 def _get_metric3d_model():
     """Lazily load and cache the Metric3D v2 ViT-small model (process-local)."""
     global _METRIC3D_MODEL
@@ -66,6 +103,7 @@ def _get_metric3d_model():
                 device = torch.device("cuda" if _cuda_available() else "cpu")
                 model = model.to(device)
                 model.eval()
+                _patch_metric3d_for_device(model, device)
                 _METRIC3D_MODEL = model
     return _METRIC3D_MODEL
 
