@@ -9,14 +9,14 @@ Requires Python 3.12+ and Blender 3.6+ on PATH (Blender only needed for generati
 ### macOS / Linux / WSL
 
 ```bash
-bash setupUNIX.sh   # installs Poetry, shell plugin, and all packages
+bash setupUNIX.sh   # installs Poetry, shell plugin, all packages, and mmcv stub
 poetry shell        # activate the environment
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-.\setupPC.ps1       # installs Poetry, shell plugin, and all packages
+.\setupPC.ps1       # installs Poetry, shell plugin, all packages, and mmcv stub
 poetry shell        # activate the environment
 ```
 
@@ -25,6 +25,12 @@ If PowerShell blocks script execution, run:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setupPC.ps1
 ```
+
+> **Note on mmcv:** Metric3D v2 internally imports `mmcv` (OpenMMLab), which has
+> no pre-built wheels for PyTorch 2.7 + Python 3.12. The setup scripts install a
+> minimal `mmcv_stub/` shim that delegates the two symbols used at inference time
+> (`Config`, `DictAction`) to `mmengine`, the official mmcv successor. No separate
+> `mmcv` installation is needed.
 
 ## Running the App
 
@@ -71,6 +77,7 @@ python -m training.train
 ├── setupUNIX.sh              # One-command setup for macOS/Linux/WSL (Poetry)
 ├── setupPC.ps1               # One-command setup for Windows PowerShell (Poetry)
 ├── pyproject.toml            # Poetry dependencies
+├── mmcv_stub/                # Minimal mmcv shim (delegates to mmengine; see Setup note)
 └── outputs/                  # Generated data (gitignored)
     ├── uploads/
     ├── frames/{job_id}/
@@ -102,15 +109,26 @@ User uploads kitchen.jpg
 ## Models
 
 ### Depth + Surface Normals — Metric3D v2 (ViT-small)
-Single forward pass yields **geometrically consistent metric depth and surface normals**,
-replacing the earlier two-model setup (Depth Anything V2 + Omnidata DPT-Hybrid).
+A **single forward pass** yields both geometrically consistent metric depth
+(H × W, metres) and surface normals (H × W × 3), replacing the earlier
+two-model setup (Depth Anything V2 + Omnidata DPT-Hybrid). Both the
+*Predicted Depth* and *Surface Normals* previews shown on the results page
+come entirely from this one model.
+
 **Paper:** Hu et al., *Metric3D v2: A Versatile Monocular Geometric Foundation Model
 for Zero-Shot Metric Depth and Surface Normal Estimation*, IEEE TPAMI 2024.
 [arXiv:2404.15506](https://arxiv.org/abs/2404.15506)
+
 **Why chosen:** Joint depth+normal training ensures geometric consistency (important
 when combining both in the placement mask). Ranks #1 on NYUv2 / KITTI over Depth
 Anything and Marigold. ViT-small variant is lightweight (~22 M params).
 Loaded via `torch.hub.load("YvanYin/Metric3D", "metric3d_vit_small")`.
+
+**CPU compatibility:** Metric3D's RAFT decoder (`RAFTDepthNormalDPTDecoder5`) has
+`device='cuda'` hardcoded in `get_bins()` and `create_mesh_grid()`. At load time
+we monkey-patch these methods to use `next(self.parameters()).device` instead, so
+the model runs correctly on CPU when no GPU is available.
+
 Alternatives considered:
 - *Depth Anything V2* (Yang et al., NeurIPS 2024, [arXiv:2406.09414](https://arxiv.org/abs/2406.09414)) +
   *Omnidata DPT-Hybrid* (Eftekhar et al., ICCV 2021, [arXiv:2110.04994](https://arxiv.org/abs/2110.04994)) —
