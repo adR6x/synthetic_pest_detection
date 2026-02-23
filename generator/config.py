@@ -48,9 +48,6 @@ RENDER_HEIGHT = 480
 FPS = 2
 NUM_FRAMES = 10
 
-# Depth estimation model (runs in system Python, not Blender)
-DEPTH_MODEL = "depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf"
-
 # Output directories (relative to project root)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")

@@ -1,4 +1,17 @@
-"""Depth-aware pest placement using Depth Anything V2 (runs in system Python)."""
+"""Geometric scene analysis: metric depth + surface normals (Metric3D v2) and
+gravity estimation (classical vanishing-point). Runs in system Python (no bpy).
+
+Models
+------
+Metric3D v2 (Hu et al., TPAMI 2024 — arXiv:2404.15506)
+    Single forward pass yields geometrically consistent metric depth and surface
+    normals. Replaces the earlier two-model setup (Depth Anything V2 + Omnidata).
+    Loaded via torch.hub from YvanYin/Metric3D; variant: metric3d_vit_small.
+
+Gravity estimation — classical LSD + RANSAC vanishing-point (no ML model)
+    von Gioi et al., "LSD: A Fast Line Segment Detector", TPAMI 2010.
+    doi:10.1109/TPAMI.2008.300
+"""
 
 import threading
 
@@ -6,128 +19,123 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from generator.config import DEPTH_MODEL
+# --------------------------------------------------------------------------- #
+#  Metric3D v2 — depth + surface normals                                      #
+# --------------------------------------------------------------------------- #
 
-_DEPTH_PIPELINE = None
-_DEPTH_PIPELINE_LOCK = threading.Lock()
-_SURFACE_NORMAL_MODEL = None
-_SURFACE_NORMAL_MODEL_LOCK = threading.Lock()
-_SURFACE_NORMAL_DEVICE = None
-_SURFACE_NORMAL_TRANSFORM = None
+_METRIC3D_MODEL = None
+_METRIC3D_LOCK = threading.Lock()
 
-
-def _get_depth_pipeline():
-    """Lazily construct and cache the HF depth pipeline (process-local)."""
-    global _DEPTH_PIPELINE
-    if _DEPTH_PIPELINE is None:
-        with _DEPTH_PIPELINE_LOCK:
-            if _DEPTH_PIPELINE is None:
-                from transformers import pipeline
-
-                _DEPTH_PIPELINE = pipeline(
-                    "depth-estimation", model=DEPTH_MODEL, device=-1
-                )
-    return _DEPTH_PIPELINE
+# ViT-small canonical input size (height × width)
+_M3D_INPUT_SIZE = (616, 1064)
+# ImageNet normalisation constants (values in [0, 255] range)
+_M3D_MEAN = np.array([123.675, 116.28, 103.53], dtype=np.float32)
+_M3D_STD  = np.array([58.395,  57.12,  57.375],  dtype=np.float32)
 
 
-def _get_surface_normal_model():
-    """Lazily construct and cache Omnidata surface-normal model (process-local)."""
-    global _SURFACE_NORMAL_MODEL, _SURFACE_NORMAL_DEVICE, _SURFACE_NORMAL_TRANSFORM
-    if _SURFACE_NORMAL_MODEL is None:
-        with _SURFACE_NORMAL_MODEL_LOCK:
-            if _SURFACE_NORMAL_MODEL is None:
+def _get_metric3d_model():
+    """Lazily load and cache the Metric3D v2 ViT-small model (process-local)."""
+    global _METRIC3D_MODEL
+    if _METRIC3D_MODEL is None:
+        with _METRIC3D_LOCK:
+            if _METRIC3D_MODEL is None:
                 import torch
-                import PIL
-                from torchvision import transforms
-
-                _SURFACE_NORMAL_DEVICE = torch.device(
-                    "cuda" if torch.cuda.is_available() else "cpu"
-                )
                 model = torch.hub.load(
-                    "alexsax/omnidata_models", "surface_normal_dpt_hybrid_384"
+                    "YvanYin/Metric3D", "metric3d_vit_small", pretrain=True
                 )
-                model.to(_SURFACE_NORMAL_DEVICE)
+                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                model = model.to(device)
                 model.eval()
-                _SURFACE_NORMAL_MODEL = model
-                _SURFACE_NORMAL_TRANSFORM = transforms.Compose(
-                    [
-                        transforms.Resize(384, interpolation=PIL.Image.BILINEAR),
-                        transforms.CenterCrop(384),
-                        transforms.ToTensor(),
-                    ]
-                )
-    return _SURFACE_NORMAL_MODEL, _SURFACE_NORMAL_DEVICE, _SURFACE_NORMAL_TRANSFORM
+                _METRIC3D_MODEL = model
+    return _METRIC3D_MODEL
 
 
-def preload_depth_model(run_warmup_inference=False):
-    """Preload the depth model into memory to reduce first-request latency."""
-    pipe = _get_depth_pipeline()
-    if run_warmup_inference:
-        dummy = Image.new("RGB", (64, 64), color=(127, 127, 127))
-        try:
-            pipe(dummy)
-        except Exception:
-            # Warmup inference is best-effort; model load is the main win.
-            pass
+def preload_models():
+    """Preload Metric3D into memory to reduce first-request latency."""
+    _get_metric3d_model()
 
 
-def estimate_depth(image_path):
-    """Estimate metric depth from a kitchen image using Depth Anything V2.
+def estimate_metric3d(image_path):
+    """Estimate metric depth and surface normals from a single image.
+
+    Uses Metric3D v2 (ViT-small) in a single forward pass, producing
+    geometrically consistent depth and normals.
+
+    Camera intrinsics are not required; a reasonable indoor default
+    (fx = fy = max(H, W), principal point at image centre) is used so that
+    Metric3D's canonical-space normalisation works correctly.
 
     Args:
         image_path: Path to the kitchen image.
 
     Returns:
-        depth_map: np.ndarray of shape (H, W) with depth in meters.
-    """
-    pipe = _get_depth_pipeline()
-    image = Image.open(image_path).convert("RGB")
-    result = pipe(image)
-
-    # Prefer raw numeric depth if the pipeline exposes it.
-    predicted_depth = result.get("predicted_depth")
-    if predicted_depth is not None:
-        if hasattr(predicted_depth, "detach"):
-            predicted_depth = predicted_depth.detach().cpu().numpy()
-        depth_map = np.array(predicted_depth, dtype=np.float32).squeeze()
-    else:
-        depth_map = np.array(result["depth"], dtype=np.float32)
-
-    depth_map = np.nan_to_num(depth_map, nan=0.0, posinf=0.0, neginf=0.0)
-    return depth_map
-
-
-def estimate_surface_normals_pretrained(image_path):
-    """Estimate surface normals from RGB using Omnidata DPT-Hybrid.
-
-    Returns:
-        np.ndarray of shape (H, W, 3) with approximate unit normals in [-1, 1].
+        dict with keys:
+            'depth'   – np.ndarray (H, W)    metric depth in metres.
+            'normals' – np.ndarray (H, W, 3) unit surface normals in camera
+                        space (X right, Y up, Z out-of-screen), matching the
+                        convention used by build_surface_probability_map.
     """
     import torch
-    import torch.nn.functional as F
 
-    model, device, transform = _get_surface_normal_model()
+    model = _get_metric3d_model()
+    device = next(model.parameters()).device
 
-    image = Image.open(image_path).convert("RGB")
-    orig_w, orig_h = image.size
+    bgr = cv2.imread(image_path)
+    if bgr is None:
+        raise FileNotFoundError(f"Cannot read image: {image_path}")
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+    orig_h, orig_w = rgb.shape[:2]
+
+    # Default intrinsics: assume ~60 deg FOV for indoor kitchen camera
+    fx = fy = float(max(orig_h, orig_w))
+    intrinsic = [fx, fy, orig_w / 2.0, orig_h / 2.0]
+
+    # Resize to canonical input size, preserving aspect ratio
+    scale = min(_M3D_INPUT_SIZE[0] / orig_h, _M3D_INPUT_SIZE[1] / orig_w)
+    rsz_h, rsz_w = int(orig_h * scale), int(orig_w * scale)
+    rgb_rsz = cv2.resize(rgb, (rsz_w, rsz_h), interpolation=cv2.INTER_LINEAR)
+
+    # Scale intrinsics accordingly
+    intr_scaled = [intrinsic[0] * scale, intrinsic[1] * scale,
+                   intrinsic[2] * scale, intrinsic[3] * scale]
+
+    # Pad to exact canonical size
+    pad_h = _M3D_INPUT_SIZE[0] - rsz_h
+    pad_w = _M3D_INPUT_SIZE[1] - rsz_w
+    rgb_pad = np.pad(rgb_rsz, ((0, pad_h), (0, pad_w), (0, 0)),
+                     mode="constant", constant_values=0)
+
+    # Normalise and build tensor
+    rgb_norm = (rgb_pad.astype(np.float32) - _M3D_MEAN) / _M3D_STD
+    img_tensor = (torch.from_numpy(rgb_norm)
+                  .permute(2, 0, 1)
+                  .unsqueeze(0)
+                  .to(device))
 
     with torch.no_grad():
-        img_tensor = transform(image)[:3].unsqueeze(0).to(device)
-        if img_tensor.shape[1] == 1:
-            img_tensor = img_tensor.repeat_interleave(3, 1)
-        output = model(img_tensor).clamp(min=0.0, max=1.0)
-        output = F.interpolate(
-            output, size=(orig_h, orig_w), mode="bilinear", align_corners=False
-        )
-        normals = output[0].permute(1, 2, 0).cpu().numpy()
+        pred_depth, _, output_dict = model.inference({"input": img_tensor})
 
-    # Omnidata outputs normal channels encoded in [0, 1]; map to [-1, 1].
-    normals = normals * 2.0 - 1.0
-    normals = np.nan_to_num(normals, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
-    magnitude = np.linalg.norm(normals, axis=-1, keepdims=True)
-    magnitude = np.clip(magnitude, 1e-8, None)
-    normals /= magnitude
-    return normals
+    # Unpad and restore original resolution — depth
+    depth = pred_depth.squeeze().cpu().numpy()
+    depth = depth[:rsz_h, :rsz_w]
+    depth = cv2.resize(depth, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+    depth = np.nan_to_num(depth, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
+
+    # Unpad and restore original resolution — normals
+    raw_normal = output_dict.get("prediction_normal")
+    if raw_normal is not None:
+        # Shape: (1, 4, H, W) — channels 0:3 are XYZ, channel 3 is confidence
+        normals = raw_normal[0, :3].permute(1, 2, 0).cpu().numpy()
+        normals = normals[:rsz_h, :rsz_w]
+        normals = cv2.resize(normals, (orig_w, orig_h), interpolation=cv2.INTER_LINEAR)
+        normals = np.nan_to_num(normals, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
+        mag = np.linalg.norm(normals, axis=-1, keepdims=True)
+        normals /= np.clip(mag, 1e-8, None)
+    else:
+        # Fallback: finite-difference normals from depth
+        normals = compute_surface_normals(depth)
+
+    return {"depth": depth, "normals": normals}
 
 
 def compute_surface_normals(depth_map):
@@ -180,12 +188,6 @@ def save_surface_preview(normals, output_path):
     Image.fromarray(rgb, mode="RGB").save(output_path)
 
 
-def save_surface_preview_pretrained(image_path, output_path):
-    """Save surface-normal preview predicted by a pretrained normal model."""
-    normals = estimate_surface_normals_pretrained(image_path)
-    save_surface_preview(normals, output_path)
-
-
 def save_mask_preview(mask, output_path):
     """Save a placement map image (binary or probabilistic) to grayscale PNG."""
     arr = np.array(mask)
@@ -217,16 +219,6 @@ def compute_depth_placement_score(depth_map):
     # Higher score = closer to camera
     score = 1.0 - norm
     return score.astype(np.float32)
-
-
-def save_probability_preview(normals, output_path):
-    """Save a grayscale probability preview derived from nz (surface flatness)."""
-    nz = np.array(normals, dtype=np.float32)[:, :, 2]
-    nz = np.nan_to_num(nz, nan=0.0, posinf=0.0, neginf=0.0)
-    # Map nz from [-1, 1] to [0, 1]; higher means flatter/up-facing.
-    prob = np.clip((nz + 1.0) * 0.5, 0.0, 1.0)
-    img = (prob * 255.0).astype(np.uint8)
-    Image.fromarray(img, mode="L").save(output_path)
 
 
 def build_placement_mask(normals, nz_threshold):

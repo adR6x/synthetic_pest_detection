@@ -10,7 +10,7 @@ import time
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash
 
 from generator.config import UPLOAD_DIR, FRAMES_DIR, VIDEOS_DIR, LABELS_DIR, OUTPUT_DIR
-from generator.depth_estimator import preload_depth_model
+from generator.depth_estimator import preload_models
 from generator.pipeline import generate_video
 
 # --- Testing mode: use temp directory instead of outputs/ ---
@@ -34,18 +34,18 @@ for d in [UPLOAD_DIR, FRAMES_DIR, VIDEOS_DIR, LABELS_DIR]:
     os.makedirs(d, exist_ok=True)
 
 
-def _background_warm_depth_model():
+def _background_warm_models():
     start = time.time()
     try:
-        print("Depth model warmup started...")
-        preload_depth_model(run_warmup_inference=False)
-        print(f"Depth model warmup complete in {time.time() - start:.1f}s")
+        print("Metric3D model warmup started...")
+        preload_models()
+        print(f"Metric3D model warmup complete in {time.time() - start:.1f}s")
     except Exception as e:
-        print(f"WARNING: Depth model warmup failed: {e}")
+        print(f"WARNING: Metric3D model warmup failed: {e}")
 
 
 # Warm the model in the background so the first generation request is faster.
-threading.Thread(target=_background_warm_depth_model, daemon=True).start()
+threading.Thread(target=_background_warm_models, daemon=True).start()
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "webp"}
 

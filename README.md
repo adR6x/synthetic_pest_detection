@@ -55,7 +55,7 @@ python -m training.train
 ├── generator/
 │   ├── config.py             # Render settings, pest parameters, output paths
 │   ├── pipeline.py           # Orchestrator: depth estimation + Blender subprocess + MP4 assembly
-│   ├── depth_estimator.py    # Depth, surface normals, gravity estimation, probability placement maps
+│   ├── depth_estimator.py    # Metric3D v2 (depth+normals), gravity estimation, probability placement maps
 │   ├── blender_script.py     # Entry point inside Blender
 │   ├── scene_setup.py        # Background plane, orthographic camera, lighting (bpy)
 │   ├── pest_models.py        # 3D pest geometry from UV sphere primitives (bpy)
@@ -85,9 +85,9 @@ User uploads kitchen.jpg
   -> Flask saves to outputs/uploads/
   -> pipeline.py:
        1. Feed-forward inference (parallel on CPU / multi-GPU, sequential on single GPU):
-          a. Depth Anything V2  — metric depth map (H x W, metres)
-          b. Omnidata DPT       — surface normals in camera space (H x W x 3)
-          c. Gravity estimation — camera-up vector via vanishing-point detection
+          a. Metric3D v2 (ViT-small) — metric depth (H x W, metres) +
+                                        surface normals (H x W x 3) in one pass
+          b. Gravity estimation      — camera-up vector via vanishing-point detection
        2. Probability map    — sigmoid slope + normal coherence per pest type
        3. Pest sampling      — positions drawn from probability map
        4. Blender subprocess — renders 10 frames at 640x480 via EEVEE
@@ -101,27 +101,25 @@ User uploads kitchen.jpg
 
 ## Models
 
-### Depth Estimation — Depth Anything V2 (Metric Indoor Small)
-Estimates metric depth from a single RGB image.
-**Paper:** Yang et al., *Depth Anything V2*, NeurIPS 2024.
-[arXiv:2406.09414](https://arxiv.org/abs/2406.09414)
-**Why chosen:** State-of-the-art monocular metric depth; indoor-tuned variant keeps
-inference fast on CPU (~1–2 s). Alternatives considered:
-- *MiDaS* — relative depth only, no metric scale.
-- *ZoeDepth* — metric depth but heavier and slower than the small V2 variant.
-- *DepthPro* (Apple, 2024) — also predicts focal length; considered for future use when
-  camera intrinsics are needed for back-projection.
-
-### Surface Normal Estimation — Omnidata DPT-Hybrid
-Predicts per-pixel surface normals in camera space from a single RGB image.
-**Paper:** Eftekhar et al., *Omnidata: A Scalable Pipeline for Making Multi-Task
-Mid-Level Vision Datasets*, ICCV 2021.
-[arXiv:2110.04994](https://arxiv.org/abs/2110.04994)
-**Why chosen:** Robust indoor normal predictions with a clean HuggingFace / torch.hub
-interface. Alternatives considered:
-- *DSINE* (Bae et al., 2024) — better accuracy on planar surfaces but requires custom
-  inference code.
-- *GeoWizard* — joint depth+normal but much heavier.
+### Depth + Surface Normals — Metric3D v2 (ViT-small)
+Single forward pass yields **geometrically consistent metric depth and surface normals**,
+replacing the earlier two-model setup (Depth Anything V2 + Omnidata DPT-Hybrid).
+**Paper:** Hu et al., *Metric3D v2: A Versatile Monocular Geometric Foundation Model
+for Zero-Shot Metric Depth and Surface Normal Estimation*, IEEE TPAMI 2024.
+[arXiv:2404.15506](https://arxiv.org/abs/2404.15506)
+**Why chosen:** Joint depth+normal training ensures geometric consistency (important
+when combining both in the placement mask). Ranks #1 on NYUv2 / KITTI over Depth
+Anything and Marigold. ViT-small variant is lightweight (~22 M params).
+Loaded via `torch.hub.load("YvanYin/Metric3D", "metric3d_vit_small")`.
+Alternatives considered:
+- *Depth Anything V2* (Yang et al., NeurIPS 2024, [arXiv:2406.09414](https://arxiv.org/abs/2406.09414)) +
+  *Omnidata DPT-Hybrid* (Eftekhar et al., ICCV 2021, [arXiv:2110.04994](https://arxiv.org/abs/2110.04994)) —
+  previous two-model setup; depth and normals were independently estimated and
+  could be geometrically inconsistent.
+- *DepthPro* (Bochkovskii et al., 2024, [arXiv:2410.02073](https://arxiv.org/abs/2410.02073)) —
+  depth + focal length but no normals.
+- *UniDepth v2* (Piccinelli et al., CVPR 2024 + 2025, [arXiv:2502.20110](https://arxiv.org/abs/2502.20110)) —
+  depth + camera intrinsics but no normals.
 
 ### Gravity / Camera-Up Estimation — Classical Vanishing-Point Detection
 Estimates the vertical vanishing point (and hence the world-up direction in camera
