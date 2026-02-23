@@ -466,7 +466,7 @@ def estimate_gravity(image_path):
       3. RANSAC to find the dominant vertical vanishing point (VP).
       4. Convert the VP pixel position to a unit up-vector in camera space.
 
-    Camera-space convention (matching Omnidata surface normals):
+    Camera-space convention (matching Metric3D v2 surface normals):
         X = right,  Y = up,  Z = out-of-screen toward viewer.
 
     Falls back to [0, 1, 0] (level-camera prior) when no reliable VP is found.
