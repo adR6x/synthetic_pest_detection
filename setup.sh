@@ -45,6 +45,14 @@ else
     info "Poetry installed ($(poetry --version))"
 fi
 
+# ─── Poetry shell plugin ──────────────────────────────────────────────────────
+if poetry self show plugins 2>/dev/null | grep -q 'poetry-plugin-shell'; then
+    info "poetry-plugin-shell already installed"
+else
+    info "Installing poetry-plugin-shell..."
+    poetry self add poetry-plugin-shell
+fi
+
 # ─── Install dependencies ─────────────────────────────────────────────────────
 info "Installing project dependencies..."
 cd "$(dirname "$0")"
