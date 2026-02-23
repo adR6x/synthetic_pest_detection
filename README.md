@@ -130,8 +130,10 @@ poetry shell
 
 ### 5. Run the web app
 
+Inside your `poetry shell`, simply run:
+
 ```bash
-python -m app.main
+flask run
 # Open http://localhost:5000
 # Upload any kitchen image -> generates video + 10 labeled frames
 ```
