@@ -118,6 +118,9 @@ def configure_render(width, height):
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.film_transparent = False
+    # Disable dithering to avoid salt-and-pepper speckle artifacts in flat regions.
+    # (Blender enables dithering by default when quantizing to 8-bit outputs.)
+    scene.render.dither_intensity = 0.0
 
     # EEVEE settings for speed
     scene.eevee.taa_render_samples = 16
