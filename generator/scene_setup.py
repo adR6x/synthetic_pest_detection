@@ -98,13 +98,20 @@ def configure_render(width, height):
     """
     scene = bpy.context.scene
 
-    # EEVEE was renamed to EEVEE_NEXT in Blender 4.2; the old name was removed
-    # in 4.3+. Using the wrong name causes a silent fallback to Cycles, which
-    # produces white-dot fireflies at low sample counts.
-    if bpy.app.version >= (4, 2, 0):
+    # Dynamically pick the EEVEE engine name by querying Blender's own engine
+    # registry. BLENDER_EEVEE was renamed to BLENDER_EEVEE_NEXT in 4.2 and
+    # removed in 4.3+. Hardcoding a version number would break again on future
+    # releases; checking the registry works on any Blender version.
+    _available_engines = {
+        item.identifier
+        for item in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items
+    }
+    if "BLENDER_EEVEE_NEXT" in _available_engines:
         scene.render.engine = "BLENDER_EEVEE_NEXT"
-    else:
+    elif "BLENDER_EEVEE" in _available_engines:
         scene.render.engine = "BLENDER_EEVEE"
+    else:
+        raise RuntimeError(f"No EEVEE engine found. Available: {_available_engines}")
 
     scene.render.resolution_x = width
     scene.render.resolution_y = height
