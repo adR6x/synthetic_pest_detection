@@ -1,6 +1,46 @@
 """Generator configuration — pure Python, no bpy dependency."""
 
 import os
+import shutil
+import sys
+
+
+def _find_blender():
+    """Locate the Blender executable.
+
+    Resolution order:
+    1. BLENDER_PATH environment variable
+    2. 'blender' on the system PATH
+    3. Common Windows installation directories (Windows only)
+    Falls back to 'blender' so the error message from subprocess is clear.
+    """
+    env_path = os.environ.get("BLENDER_PATH")
+    if env_path:
+        return env_path
+
+    which = shutil.which("blender")
+    if which:
+        return which
+
+    if sys.platform == "win32":
+        program_files = [
+            os.environ.get("PROGRAMFILES", r"C:\Program Files"),
+            os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"),
+        ]
+        for pf in program_files:
+            blender_root = os.path.join(pf, "Blender Foundation")
+            if os.path.isdir(blender_root):
+                # Pick the highest-versioned folder
+                versions = sorted(os.listdir(blender_root), reverse=True)
+                for version_dir in versions:
+                    candidate = os.path.join(blender_root, version_dir, "blender.exe")
+                    if os.path.isfile(candidate):
+                        return candidate
+
+    return "blender"  # fallback — subprocess will raise a clear FileNotFoundError
+
+
+BLENDER_PATH = _find_blender()
 
 # Render settings
 RENDER_WIDTH = 640

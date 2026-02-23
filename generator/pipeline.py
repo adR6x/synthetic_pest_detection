@@ -11,6 +11,7 @@ import uuid
 
 import cv2
 from generator.config import (
+    BLENDER_PATH,
     FRAMES_DIR,
     LABELS_DIR,
     MAX_PESTS,
@@ -129,7 +130,7 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
     )
 
     cmd = [
-        "blender",
+        BLENDER_PATH,
         "--background",
         "--python", blender_script,
         "--", config_json,
