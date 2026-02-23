@@ -97,7 +97,15 @@ def configure_render(width, height):
         height: Output image height in pixels.
     """
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE"
+
+    # EEVEE was renamed to EEVEE_NEXT in Blender 4.2; the old name was removed
+    # in 4.3+. Using the wrong name causes a silent fallback to Cycles, which
+    # produces white-dot fireflies at low sample counts.
+    if bpy.app.version >= (4, 2, 0):
+        scene.render.engine = "BLENDER_EEVEE_NEXT"
+    else:
+        scene.render.engine = "BLENDER_EEVEE"
+
     scene.render.resolution_x = width
     scene.render.resolution_y = height
     scene.render.resolution_percentage = 100
