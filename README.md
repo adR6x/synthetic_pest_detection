@@ -1,156 +1,85 @@
 # Synthetic Data Generation for Pest Detection
 
-A Blender-based synthetic video generator that overlays animated 3D pests (mice, rats, cockroaches) onto kitchen images, producing labeled video frames for training a Vision Transformer classifier.
+A Blender-based synthetic video generator that overlays animated 3D pests (mice, rats, cockroaches) onto kitchen images using depth-aware placement, producing labeled frames for training a Vision Transformer classifier.
 
-## Architecture
+## Setup
 
-```
-User uploads kitchen.jpg
-  -> Flask saves to outputs/uploads/
-  -> pipeline.py invokes Blender as subprocess
-     -> blender_script.py orchestrates:
-        1. scene_setup.py   — background plane, orthographic camera, sun light
-        2. pest_models.py   — ellipsoid meshes from UV sphere primitives
-        3. pest_animation.py — keyframed random-walk scurrying
-        4. labeler.py       — 3D->2D bounding box projection + JSON
-        5. Renders 10 frames at 640x480 via EEVEE
-  -> pipeline.py assembles PNGs into MP4 (OpenCV)
-  -> Flask serves video + frame gallery
+Requires Python 3.12+ and Blender 3.6+ on PATH (Blender only needed for generation).
 
-Training pipeline:
-  outputs/frames/*.png + outputs/labels/*.json
-  -> PestDetectionDataset (resize 640x480 -> 224x224, ImageNet normalize)
-  -> ViTForImageClassification (google/vit-base-patch16-224, 4 classes)
-  -> CrossEntropy + AdamW
+```bash
+bash setup.sh   # installs Poetry, shell plugin, and all packages
+poetry shell    # activate the environment
 ```
 
-## Image Size Pipeline
+## Running the App
 
-| Stage | Size | Format |
-|-------|------|--------|
-| Generator output | 640x480 | PNG |
-| Bounding box coords | 640x480 pixel space | JSON |
-| Training input (after resize) | 224x224 | Tensor |
-| ViT patches | 14x14 grid of 16x16 patches | Internal |
+Inside `poetry shell`:
+
+```bash
+flask run
+# Open http://localhost:5000
+# Upload a kitchen image -> generates video + 10 labeled frames
+```
+
+## Training the Classifier
+
+```bash
+python -m training.train
+# Trains a ViT classifier on generated frames in outputs/
+# Prints "no data" if nothing has been generated yet
+```
 
 ## Project Structure
 
 ```
-├── generator/              # Blender-based synthetic data generation
-│   ├── config.py           # Resolution, FPS, pest parameters (no bpy)
-│   ├── pipeline.py         # Orchestrator: Blender subprocess + MP4 assembly
-│   ├── blender_script.py   # Blender entry point (runs inside Blender)
-│   ├── scene_setup.py      # Background plane, camera, lighting (bpy)
-│   ├── pest_models.py      # 3D pest geometry from primitives (bpy)
-│   ├── pest_animation.py   # Random-walk keyframe animation (bpy)
-│   └── labeler.py          # 3D->2D bbox projection + JSON (bpy)
-│
-├── app/                    # Flask web application
-│   ├── main.py             # Routes: upload, generate, serve outputs
-│   ├── templates/index.html
+├── app/
+│   ├── main.py               # Flask routes: upload, generate, serve results
+│   ├── templates/index.html  # Upload form, frame player, bbox overlay, previews
 │   └── static/style.css
 │
-├── training/               # Training pipeline
-│   ├── config.py           # Hyperparameters, label mapping
-│   ├── dataset.py          # PyTorch Dataset (frames + JSON labels)
-│   ├── model.py            # ViT wrapper (HuggingFace)
-│   └── train.py            # Training loop
+├── generator/
+│   ├── config.py             # Render settings, pest parameters, output paths
+│   ├── pipeline.py           # Orchestrator: depth estimation + Blender subprocess + MP4 assembly
+│   ├── depth_estimator.py    # Depth + surface normal estimation, probability placement maps
+│   ├── blender_script.py     # Entry point inside Blender
+│   ├── scene_setup.py        # Background plane, orthographic camera, lighting (bpy)
+│   ├── pest_models.py        # 3D pest geometry from UV sphere primitives (bpy)
+│   ├── pest_animation.py     # Random-walk keyframe animation with mask sampling (bpy)
+│   └── labeler.py            # 3D->2D bbox projection + JSON labels (bpy)
 │
-└── outputs/                # Generated data (gitignored)
+├── training/
+│   ├── config.py             # Hyperparameters, label mapping
+│   ├── dataset.py            # PyTorch Dataset (frames + JSON labels)
+│   ├── model.py              # ViT-base-patch16-224 wrapper (HuggingFace)
+│   └── train.py              # Training loop: AdamW, CrossEntropy, per-epoch logging
+│
+├── setup.sh                  # One-command environment setup
+├── pyproject.toml            # Poetry dependencies
+└── outputs/                  # Generated data (gitignored)
     ├── uploads/
     ├── frames/{job_id}/
     ├── videos/{job_id}.mp4
     └── labels/{job_id}/
 ```
 
-## Quickstart for Teammates
+## Architecture
 
-### 1. Clone and switch to the working branch
-
-```bash
-git clone git@github.com:Mirsaid-ai/Synthetic-Data-Generation-for-Pest-Detection.git synthetic_data_gen_pest
-cd synthetic_data_gen_pest
-git checkout anubhav_v1
 ```
-
-Or if you already have the repo cloned:
-
-```bash
-cd synthetic_data_gen_pest
-git fetch origin
-git checkout anubhav_v1
-git pull
+User uploads kitchen.jpg
+  -> Flask saves to outputs/uploads/
+  -> pipeline.py:
+       1. Depth Anything V2  — estimates depth map
+       2. Omnidata DPT       — estimates surface normals
+       3. Probability map    — sigmoid slope + normal coherence per pest type
+       4. Pest sampling      — positions drawn from probability map
+       5. Blender subprocess — renders 10 frames at 640x480 via EEVEE
+          -> scene_setup.py      background plane, camera, sun light
+          -> pest_models.py      ellipsoid meshes
+          -> pest_animation.py   random-walk keyframes + mask rejection sampling
+          -> labeler.py          3D->2D bbox projection + JSON
+       6. OpenCV             — assembles PNGs into MP4 at 2 FPS
+  -> Flask serves video + frame gallery + depth/normal/mask previews
 ```
-
-### 2. Create your own branch (to avoid stepping on each other)
-
-```bash
-git checkout -b yourname_v1
-git push --set-upstream origin yourname_v1
-```
-
-To pull in latest changes from `anubhav_v1` into your branch later:
-
-```bash
-git fetch origin
-git merge origin/anubhav_v1 -m "merge latest from anubhav_v1"
-```
-
-### 3. Install dependencies
-
-Run the setup script — it installs Poetry (if missing), the shell plugin, and all packages in one go:
-
-**Mac / Linux / WSL:**
-```bash
-bash setup.sh
-```
-
-Then activate the environment:
-```bash
-poetry shell
-```
-
-**Duke Cluster (Singularity):**
-```bash
-singularity shell --nv --bind /work:/work,/cwork:/cwork /opt/apps/containers/oit/jupyter/courses-jupyter-cuda.sif
-bash setup.sh
-poetry shell
-```
-
-### 4. Install Blender (needed for video generation only)
-
-- Download from https://www.blender.org/download/ (version 3.6+)
-- Make sure `blender` is on your PATH:
-  - **Windows:** Add the Blender install folder (e.g. `C:\Program Files\Blender Foundation\Blender 4.0`) to your system PATH
-  - **Mac:** `brew install --cask blender` or add `/Applications/Blender.app/Contents/MacOS` to PATH
-  - **Linux:** `sudo apt install blender` or `sudo snap install blender --classic`
-- Verify: `blender --version`
-
-> **Note:** Blender is only needed for the generation step. Training works without it.
-
-### 5. Run the web app
-
-Inside your `poetry shell`, simply run:
-
-```bash
-flask run
-# Open http://localhost:5000
-# Upload any kitchen image -> generates video + 10 labeled frames
-```
-
-### 6. Train the classifier
-
-```bash
-python -m training.train
-# Loads generated frames from outputs/, trains ViT classifier
-# (prints "no data" message if nothing generated yet)
-```
-
-## Prerequisites (summary)
-
-- Python 3.12+
-- Blender 3.6+ installed and `blender` on PATH (for generation only)
-- Run `bash setup.sh` to install Poetry and all dependencies
 
 ## Label Format
 
