@@ -6,9 +6,24 @@ A Blender-based synthetic video generator that overlays animated 3D pests (mice,
 
 Requires Python 3.12+ and Blender 3.6+ on PATH (Blender only needed for generation).
 
+### macOS / Linux / WSL
+
 ```bash
-bash setup.sh   # installs Poetry, shell plugin, and all packages
-poetry shell    # activate the environment
+bash setupUNIX.sh   # installs Poetry, shell plugin, and all packages
+poetry shell        # activate the environment
+```
+
+### Windows (PowerShell)
+
+```powershell
+.\setupPC.ps1       # installs Poetry, shell plugin, and all packages
+poetry shell        # activate the environment
+```
+
+If PowerShell blocks script execution, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setupPC.ps1
 ```
 
 ## Running the App
@@ -53,7 +68,8 @@ python -m training.train
 │   ├── model.py              # ViT-base-patch16-224 wrapper (HuggingFace)
 │   └── train.py              # Training loop: AdamW, CrossEntropy, per-epoch logging
 │
-├── setup.sh                  # One-command environment setup
+├── setupUNIX.sh              # One-command setup for macOS/Linux/WSL (Poetry)
+├── setupPC.ps1               # One-command setup for Windows PowerShell (Poetry)
 ├── pyproject.toml            # Poetry dependencies
 └── outputs/                  # Generated data (gitignored)
     ├── uploads/
