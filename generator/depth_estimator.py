@@ -34,13 +34,21 @@ _M3D_STD  = np.array([58.395,  57.12,  57.375],  dtype=np.float32)
 
 
 def _cuda_available():
-    """Return True only if CUDA is both compiled-in and actually usable at runtime."""
+    """Return True only if CUDA is both compiled-in and actually usable at runtime.
+
+    torch.cuda.is_available() and torch.cuda.init() both succeed in WSL even
+    when no NVIDIA driver is present, because CUDA is lazily initialised and
+    the driver is only contacted on the first real kernel execution.  We
+    therefore run a tiny GPU op to force that check here.
+    """
     try:
         import torch
         if not torch.cuda.is_available():
             return False
-        torch.cuda.init()
-        return torch.cuda.device_count() > 0
+        # Force an actual kernel launch — this is where the driver error surfaces.
+        t = torch.zeros(1, device="cuda")
+        del t
+        return True
     except Exception:
         return False
 
