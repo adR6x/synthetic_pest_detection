@@ -98,24 +98,23 @@ git merge origin/anubhav_v1 -m "merge latest from anubhav_v1"
 
 ### 3. Install dependencies
 
-**Windows (PowerShell):**
-```powershell
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
+Run the setup script — it installs Poetry (if missing), the shell plugin, and all packages in one go:
+
+**Mac / Linux / WSL:**
+```bash
+bash setup.sh
 ```
 
-**Mac / Linux:**
+Then activate the environment:
 ```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+poetry shell
 ```
 
 **Duke Cluster (Singularity):**
 ```bash
 singularity shell --nv --bind /work:/work,/cwork:/cwork /opt/apps/containers/oit/jupyter/courses-jupyter-cuda.sif
-pip install --user -r requirements.txt
+bash setup.sh
+poetry shell
 ```
 
 ### 4. Install Blender (needed for video generation only)
@@ -147,9 +146,9 @@ python -m training.train
 
 ## Prerequisites (summary)
 
-- Python 3.10+
+- Python 3.12+
 - Blender 3.6+ installed and `blender` on PATH (for generation only)
-- `pip install -r requirements.txt`
+- Run `bash setup.sh` to install Poetry and all dependencies
 
 ## Label Format
 
