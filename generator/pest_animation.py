@@ -1,5 +1,6 @@
 """Keyframed random-walk animation for pests (runs inside Blender)."""
 
+import math
 import random
 
 import bpy
@@ -15,8 +16,14 @@ def animate_pest(
     speed,
     start_position=None,
     placement_mask_path=None,
+    forward_axis="X",
 ):
     """Animate a pest with a random-walk scurrying motion.
+
+    The pest is rotated each frame to face the direction it is moving.
+    The forward_axis parameter maps the model's head direction to the
+    world heading angle so that any imported or procedural model faces
+    the right way regardless of its local-space orientation.
 
     Args:
         pest_obj: The pest body mesh object.
@@ -26,6 +33,8 @@ def animate_pest(
         speed: Step size per frame in world units.
         start_position: Optional [x, y] starting coordinates in world units.
         placement_mask_path: Optional path to a boolean .npy placement mask.
+        forward_axis: Local axis that points toward the model's head.
+                      One of "X", "-X", "Y", "-Y".  Default "X".
     """
     # Random starting position within the plane bounds.
     # The plane goes from -plane_width/2 to +plane_width/2, so use half-dimensions.
@@ -49,10 +58,19 @@ def animate_pest(
 
     z = pest_obj.location.z  # keep height constant
 
-    # Frame 1 starts at the sampled position.
+    # Pre-compute the axis offset so model's local forward maps to world +X=0 rad.
+    # atan2(dy, dx) gives world heading where 0 = +X, pi/2 = +Y.
+    # We subtract the axis's own angle so the model head points along movement.
+    _AXIS_OFFSET = {"X": 0.0, "-X": math.pi, "Y": -math.pi / 2, "-Y": math.pi / 2}
+    axis_offset = _AXIS_OFFSET.get(forward_axis, 0.0)
+
+    # Frame 1: place at starting position facing +X (arbitrary, no movement yet).
     pest_obj.location = (x, y, z)
+    pest_obj.rotation_euler.z = axis_offset
     pest_obj.keyframe_insert(data_path="location", frame=1)
     pest_obj.keyframe_insert(data_path="rotation_euler", frame=1)
+
+    prev_x, prev_y = x, y
 
     for frame in range(2, num_frames + 1):
         # Random walk step, with rejection if it leaves valid placement regions.
@@ -76,10 +94,16 @@ def animate_pest(
         pest_obj.location = (x, y, z)
         pest_obj.keyframe_insert(data_path="location", frame=frame)
 
-        # Random slight rotation for natural movement
-        angle_z = random.uniform(-0.3, 0.3)
-        pest_obj.rotation_euler.z += angle_z
+        # Rotate to face direction of travel.  A small wobble is added so the
+        # movement looks organic rather than perfectly mechanical.
+        dx_move = x - prev_x
+        dy_move = y - prev_y
+        if abs(dx_move) > 1e-6 or abs(dy_move) > 1e-6:
+            heading = math.atan2(dy_move, dx_move) - axis_offset
+            pest_obj.rotation_euler.z = heading + random.uniform(-0.08, 0.08)
         pest_obj.keyframe_insert(data_path="rotation_euler", frame=frame)
+
+        prev_x, prev_y = x, y
 
 
 def _clamp(value, min_val, max_val):

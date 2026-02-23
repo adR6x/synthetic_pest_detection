@@ -132,6 +132,8 @@ def estimate_metric3d(image_path):
             'normals' – np.ndarray (H, W, 3) unit surface normals in camera
                         space (X right, Y up, Z out-of-screen), matching the
                         convention used by build_surface_probability_map.
+            'fx'      – float  estimated horizontal focal length in pixels
+                        (used for depth-based pest scaling).
     """
     import torch
 
@@ -193,7 +195,7 @@ def estimate_metric3d(image_path):
         # Fallback: finite-difference normals from depth
         normals = compute_surface_normals(depth)
 
-    return {"depth": depth, "normals": normals}
+    return {"depth": depth, "normals": normals, "fx": fx}
 
 
 def compute_surface_normals(depth_map):

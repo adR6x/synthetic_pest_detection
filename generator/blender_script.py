@@ -22,7 +22,7 @@ from scene_setup import (
     setup_camera,
     setup_lighting,
 )
-from pest_models import create_pest
+from pest_models import load_pest
 from pest_animation import animate_pest
 from labeler import generate_frame_label
 
@@ -64,7 +64,7 @@ def main():
     for i, pest_cfg in enumerate(pest_configs):
         pest_type = pest_cfg["type"]
         params = pest_cfg["params"]
-        pest_obj = create_pest(pest_type, params, i)
+        pest_obj = load_pest(pest_type, params, i)
         pests.append((pest_type, pest_obj))
         pest_entries.append((pest_cfg, pest_obj))
 
@@ -75,6 +75,7 @@ def main():
 
     for pest_cfg, pest_obj in pest_entries:
         speed = pest_cfg["params"].get("speed", 0.08)
+        forward_axis = pest_cfg["params"].get("forward_axis", "X")
         animate_pest(
             pest_obj,
             num_frames,
@@ -83,6 +84,7 @@ def main():
             speed,
             start_position=pest_cfg.get("start_position"),
             placement_mask_path=pest_cfg.get("placement_mask_path"),
+            forward_axis=forward_axis,
         )
 
     # 4. Render each frame and generate labels

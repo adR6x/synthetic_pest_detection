@@ -50,6 +50,61 @@ python -m training.train
 # Prints "no data" if nothing has been generated yet
 ```
 
+## 3D Pest Models
+
+By default the generator uses procedural geometry (UV-sphere ellipsoids) for all pest types.
+You can replace these with downloaded 3D models for more realistic renders.
+
+### Obtaining free models
+
+| Source | License | Notes |
+|--------|---------|-------|
+| [Sketchfab – Free downloads](https://sketchfab.com/features/free-3d-models) | CC (varies per asset) | Filter by "Downloadable", export as `.glb` |
+| [Blendswap](https://www.blendswap.com) | CC0 / CC-BY | `.blend` files; re-export as `.obj` from Blender |
+| [Smithsonian 3D Digitization](https://3d.si.edu) | CC0 | High-accuracy photogrammetry scans of real insects |
+| [Free3D](https://free3d.com) | Free (check per asset) | Mixed formats; `.obj` works best |
+
+Recommended search terms: `"cockroach 3d model"`, `"house mouse 3d"`, `"rat low poly"`.
+Prefer low-poly (< 10k faces) models for fast EEVEE rendering.
+
+### Installing a model
+
+1. Download the model as `.obj` or `.glb`.
+2. Place it in `generator/models/` (create the directory if needed).
+3. Open `generator/config.py` and set the path:
+   ```python
+   PEST_MODEL_PATHS = {
+       "cockroach": "generator/models/cockroach.glb",
+       "mouse":     "generator/models/mouse.obj",
+       "rat":       None,   # still uses procedural
+   }
+   ```
+4. Open the model once in Blender GUI to check which local axis points toward the head,
+   then set `PEST_FORWARD_AXIS` accordingly (default `"X"`; other options: `"-X"`, `"Y"`, `"-Y"`).
+
+If `model_path` is `None` or the file is missing, the pipeline falls back to the
+procedural ellipsoid automatically.
+
+### Depth-based size scaling
+
+Each pest is scaled so it appears at its correct physical size given the estimated depth
+of the scene at the placement pixel.  The formula is:
+
+```
+blender_scale = real_body_length_m × fx × PLANE_WIDTH
+                ─────────────────────────────────────────
+                      depth_at_placement_m × RENDER_WIDTH
+```
+
+where:
+- `real_body_length_m` — physical body length from `PEST_REAL_SIZES_M` in `config.py`
+- `fx` — estimated horizontal focal length in pixels (output of Metric3D v2 preprocessing)
+- `depth_at_placement_m` — metric depth at the pest's placement pixel (Metric3D v2)
+- `PLANE_WIDTH / RENDER_WIDTH` — world-units-per-pixel ratio of the orthographic render
+
+The result is clamped to [0.4×, 3×] of the procedural default to guard against
+unreliable depth estimates at image borders or textureless regions.
+
 ## Project Structure
 
 ```
@@ -64,8 +119,8 @@ python -m training.train
 │   ├── depth_estimator.py    # Metric3D v2 (depth+normals), gravity estimation, probability placement maps
 │   ├── blender_script.py     # Entry point inside Blender
 │   ├── scene_setup.py        # Background plane, orthographic camera, lighting (bpy)
-│   ├── pest_models.py        # 3D pest geometry from UV sphere primitives (bpy)
-│   ├── pest_animation.py     # Random-walk keyframe animation with mask sampling (bpy)
+│   ├── pest_models.py        # 3D pest geometry: imported .obj/.glb or UV-sphere fallback (bpy)
+│   ├── pest_animation.py     # Random-walk keyframe animation, movement-aligned rotation (bpy)
 │   └── labeler.py            # 3D->2D bbox projection + JSON labels (bpy)
 │
 ├── training/
@@ -97,10 +152,11 @@ User uploads kitchen.jpg
           b. Gravity estimation      — camera-up vector via vanishing-point detection
        2. Probability map    — sigmoid slope + normal coherence per pest type
        3. Pest sampling      — positions drawn from probability map
-       4. Blender subprocess — renders 10 frames at 640x480 via EEVEE
+       4. Depth-based scale  — blender_scale = real_size × fx × PLANE_WIDTH / (depth × RENDER_WIDTH)
+       5. Blender subprocess — renders 10 frames at 640x480 via EEVEE
           -> scene_setup.py      background plane, camera, sun light
-          -> pest_models.py      ellipsoid meshes
-          -> pest_animation.py   random-walk keyframes + mask rejection sampling
+          -> pest_models.py      load_pest(): import .obj/.glb or fallback to ellipsoid, apply scale
+          -> pest_animation.py   random-walk keyframes + heading aligned to movement direction
           -> labeler.py          3D->2D bbox projection + JSON
        5. OpenCV             — assembles PNGs into MP4 at 2 FPS
   -> Flask serves video + frame gallery + depth/normal/gravity/mask previews

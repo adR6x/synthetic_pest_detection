@@ -86,6 +86,35 @@ PEST_PARAMS = {
     },
 }
 
+# Real physical body lengths (metres) used for depth-based scale calculation.
+# Body length = longest horizontal dimension of the animal.
+PEST_REAL_SIZES_M = {
+    "mouse": 0.08,       # ~8 cm body (excluding tail)
+    "rat": 0.20,         # ~20 cm body (excluding tail)
+    "cockroach": 0.04,   # ~4 cm body
+}
+
+# Paths to imported 3D model files (.obj or .glb).
+# Set to None to use built-in procedural geometry (UV-sphere ellipsoids).
+# Place downloaded models in generator/models/ and set the path here.
+# See README.md -> 3D Pest Models for recommended free model sources.
+PEST_MODEL_PATHS = {
+    "mouse": None,        # e.g. "generator/models/mouse.glb"
+    "rat": None,          # e.g. "generator/models/rat.glb"
+    "cockroach": None,    # e.g. "generator/models/cockroach.obj"
+}
+
+# The model's local axis that points toward the head (forward direction).
+# Used to orient the pest along its movement vector each frame.
+# Procedural models have the head offset in +X, so forward_axis = "X".
+# For downloaded models, check which axis faces forward in Blender and set here.
+# Valid values: "X", "-X", "Y", "-Y"
+PEST_FORWARD_AXIS = {
+    "mouse": "X",
+    "rat": "X",
+    "cockroach": "X",
+}
+
 # Number of pests to place per scene
 MIN_PESTS = 1
 MAX_PESTS = 3

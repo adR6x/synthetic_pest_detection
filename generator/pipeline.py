@@ -17,7 +17,10 @@ from generator.config import (
     MAX_PESTS,
     MIN_PESTS,
     NUM_FRAMES,
+    PEST_FORWARD_AXIS,
+    PEST_MODEL_PATHS,
     PEST_PARAMS,
+    PEST_REAL_SIZES_M,
     PEST_TYPES,
     PLANE_HEIGHT,
     PLANE_WIDTH,
@@ -95,6 +98,8 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
 
     depth_map         = metric3d_result["depth"]
     predicted_normals = metric3d_result["normals"]
+    focal_length_px   = metric3d_result["fx"]
+    img_h, img_w      = depth_map.shape
 
     save_depth_preview(depth_map, os.path.join(frames_dir, "depth_preview.jpg"))
     save_surface_preview(predicted_normals, os.path.join(frames_dir, "surface_preview.jpg"))
@@ -127,6 +132,32 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         )[0]
         pest_cfg["start_position"] = [float(start_position[0]), float(start_position[1])]
         pest_cfg["placement_mask_path"] = mask_path_cache[mask_key]
+
+        # Depth-based scale: compute how large the pest should appear in Blender
+        # so it matches the real physical size at the estimated scene depth.
+        #
+        # Apparent pixel width  = real_size_m * fx / depth_m
+        # Blender world units   = apparent_pixels / (RENDER_WIDTH / PLANE_WIDTH)
+        # => blender_scale = real_size_m * fx * PLANE_WIDTH / (depth_m * RENDER_WIDTH)
+        wx, wy = start_position
+        px = int(round((wx / PLANE_WIDTH + 0.5) * (img_w - 1)))
+        py = int(round((0.5 - wy / PLANE_HEIGHT) * (img_h - 1)))
+        px = max(0, min(img_w - 1, px))
+        py = max(0, min(img_h - 1, py))
+        depth_val = float(depth_map[py, px])
+
+        real_size = PEST_REAL_SIZES_M[pest_type]
+        default_body_x = PEST_PARAMS[pest_type]["body_scale"][0]
+        if depth_val > 0.1:
+            raw_scale = real_size * focal_length_px * PLANE_WIDTH / (depth_val * RENDER_WIDTH)
+            # Clamp to [0.4×, 3×] of the procedural default to avoid degenerate sizes
+            blender_scale = float(max(default_body_x * 0.4, min(default_body_x * 3.0, raw_scale)))
+        else:
+            blender_scale = default_body_x  # fallback if depth is unreliable
+
+        pest_cfg["params"]["blender_scale"] = blender_scale
+        pest_cfg["params"]["model_path"] = PEST_MODEL_PATHS.get(pest_type)
+        pest_cfg["params"]["forward_axis"] = PEST_FORWARD_AXIS.get(pest_type, "X")
 
     # Build config for Blender
     config = {
