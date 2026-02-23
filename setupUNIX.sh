@@ -58,6 +58,18 @@ info "Installing project dependencies..."
 cd "$(dirname "$0")"
 poetry install
 
+# ─── mmcv stub ────────────────────────────────────────────────────────────────
+# mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab
+# has not released pre-built wheels for this combination yet.  Metric3D v2 only
+# uses mmcv.utils.{Config, DictAction} for inference, both of which are provided
+# by mmengine (the official successor).  We copy a minimal stub into the
+# virtualenv so torch.hub.load("YvanYin/Metric3D", ...) works out of the box.
+info "Installing mmcv stub (delegates to mmengine)..."
+STUB_SRC="$(dirname "$0")/mmcv_stub/mmcv"
+SITE=$(poetry run python -c "import site; print(site.getsitepackages()[0])")
+cp -r "$STUB_SRC" "$SITE/"
+info "mmcv stub installed to $SITE/mmcv"
+
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}✓ Setup complete!${NC}"
