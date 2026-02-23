@@ -55,7 +55,7 @@ python -m training.train
 ├── generator/
 │   ├── config.py             # Render settings, pest parameters, output paths
 │   ├── pipeline.py           # Orchestrator: depth estimation + Blender subprocess + MP4 assembly
-│   ├── depth_estimator.py    # Depth + surface normal estimation, probability placement maps
+│   ├── depth_estimator.py    # Depth, surface normals, gravity estimation, probability placement maps
 │   ├── blender_script.py     # Entry point inside Blender
 │   ├── scene_setup.py        # Background plane, orthographic camera, lighting (bpy)
 │   ├── pest_models.py        # 3D pest geometry from UV sphere primitives (bpy)
@@ -84,18 +84,69 @@ python -m training.train
 User uploads kitchen.jpg
   -> Flask saves to outputs/uploads/
   -> pipeline.py:
-       1. Depth Anything V2  — estimates depth map
-       2. Omnidata DPT       — estimates surface normals
-       3. Probability map    — sigmoid slope + normal coherence per pest type
-       4. Pest sampling      — positions drawn from probability map
-       5. Blender subprocess — renders 10 frames at 640x480 via EEVEE
+       1. Feed-forward inference (parallel on CPU / multi-GPU, sequential on single GPU):
+          a. Depth Anything V2  — metric depth map (H x W, metres)
+          b. Omnidata DPT       — surface normals in camera space (H x W x 3)
+          c. Gravity estimation — camera-up vector via vanishing-point detection
+       2. Probability map    — sigmoid slope + normal coherence per pest type
+       3. Pest sampling      — positions drawn from probability map
+       4. Blender subprocess — renders 10 frames at 640x480 via EEVEE
           -> scene_setup.py      background plane, camera, sun light
           -> pest_models.py      ellipsoid meshes
           -> pest_animation.py   random-walk keyframes + mask rejection sampling
           -> labeler.py          3D->2D bbox projection + JSON
-       6. OpenCV             — assembles PNGs into MP4 at 2 FPS
-  -> Flask serves video + frame gallery + depth/normal/mask previews
+       5. OpenCV             — assembles PNGs into MP4 at 2 FPS
+  -> Flask serves video + frame gallery + depth/normal/gravity/mask previews
 ```
+
+## Models
+
+### Depth Estimation — Depth Anything V2 (Metric Indoor Small)
+Estimates metric depth from a single RGB image.
+**Paper:** Yang et al., *Depth Anything V2*, NeurIPS 2024.
+[arXiv:2406.09414](https://arxiv.org/abs/2406.09414)
+**Why chosen:** State-of-the-art monocular metric depth; indoor-tuned variant keeps
+inference fast on CPU (~1–2 s). Alternatives considered:
+- *MiDaS* — relative depth only, no metric scale.
+- *ZoeDepth* — metric depth but heavier and slower than the small V2 variant.
+- *DepthPro* (Apple, 2024) — also predicts focal length; considered for future use when
+  camera intrinsics are needed for back-projection.
+
+### Surface Normal Estimation — Omnidata DPT-Hybrid
+Predicts per-pixel surface normals in camera space from a single RGB image.
+**Paper:** Eftekhar et al., *Omnidata: A Scalable Pipeline for Making Multi-Task
+Mid-Level Vision Datasets*, ICCV 2021.
+[arXiv:2110.04994](https://arxiv.org/abs/2110.04994)
+**Why chosen:** Robust indoor normal predictions with a clean HuggingFace / torch.hub
+interface. Alternatives considered:
+- *DSINE* (Bae et al., 2024) — better accuracy on planar surfaces but requires custom
+  inference code.
+- *GeoWizard* — joint depth+normal but much heavier.
+
+### Gravity / Camera-Up Estimation — Classical Vanishing-Point Detection
+Estimates the vertical vanishing point (and hence the world-up direction in camera
+space) using OpenCV's Line Segment Detector (LSD) followed by RANSAC.
+**LSD reference:** von Gioi et al., *LSD: A Fast Line Segment Detector with a False
+Detection Control*, TPAMI 2010.
+[DOI:10.1109/TPAMI.2008.300](https://doi.org/10.1109/TPAMI.2008.300)
+**Why chosen:** Zero extra model weight, runs in <200 ms on CPU, robust for
+rectangular indoor scenes (kitchen cabinets, door frames, counters). Falls back
+to a level-camera prior ([0, 1, 0]) when the VP cannot be found reliably.
+Alternatives considered:
+- *PerspectiveFields* (Jin et al., CVPR 2023, [arXiv:2212.03239](https://arxiv.org/abs/2212.03239)) —
+  per-pixel perspective field including gravity; very accurate but uses a
+  SegFormer-MiT-B3 backbone (~47 M params) plus ConvNeXt-tiny ParamNet (~29 M params),
+  which would add ~76 M parameters to an already heavy pipeline.
+- *GeoCalib* (Veicht et al., ECCV 2024, [arXiv:2409.06704](https://arxiv.org/abs/2409.06704)) —
+  learns intrinsics + gravity jointly via Levenberg-Marquardt optimisation on top of a
+  DNN; accurate but heavyweight for this use case.
+- *UprightNet* — lighter gravity estimator; lacks a maintained pip-installable release.
+
+### Classifier — Vision Transformer (ViT-Base/16)
+Trained on the generated synthetic frames to classify pest type.
+**Paper:** Dosovitskiy et al., *An Image is Worth 16×16 Words: Transformers for Image
+Recognition at Scale*, ICLR 2021.
+[arXiv:2010.11929](https://arxiv.org/abs/2010.11929)
 
 ## Label Format
 

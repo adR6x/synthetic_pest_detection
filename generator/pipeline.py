@@ -26,12 +26,17 @@ from generator.config import (
     VIDEOS_DIR,
     FPS,
 )
+from concurrent.futures import ThreadPoolExecutor
+
 from generator.depth_estimator import (
     build_surface_probability_map,
+    compute_inference_strategy,
     compute_surface_normals,
     estimate_depth,
+    estimate_gravity,
     estimate_surface_normals_pretrained,
     save_depth_preview,
+    save_gravity_preview,
     save_mask_preview,
     save_probability_preview,
     save_surface_preview,
@@ -75,13 +80,31 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
                 params[key] = list(params[key])
         pest_configs.append({"type": pest_type, "params": params})
 
-    # Depth-aware placement (system Python side)
-    depth_map = estimate_depth(image_path)
+    # Depth-aware placement — run the three feed-forward models in parallel on
+    # CPU or multi-GPU, sequentially on a single GPU to avoid VRAM contention.
+    strategy = compute_inference_strategy()
+    print(f"Inference strategy: {strategy}")
+
+    if strategy == "parallel":
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            f_depth   = ex.submit(estimate_depth, image_path)
+            f_normals = ex.submit(estimate_surface_normals_pretrained, image_path)
+            f_gravity = ex.submit(estimate_gravity, image_path)
+        depth_map         = f_depth.result()
+        predicted_normals = f_normals.result()
+        gravity_result    = f_gravity.result()
+    else:
+        depth_map         = estimate_depth(image_path)
+        predicted_normals = estimate_surface_normals_pretrained(image_path)
+        gravity_result    = estimate_gravity(image_path)
+
+    normals = compute_surface_normals(depth_map)  # kept for debug preview only
     save_depth_preview(depth_map, os.path.join(frames_dir, "depth_preview.jpg"))
-    normals = compute_surface_normals(depth_map)  # kept for existing preview/debug use
-    predicted_normals = estimate_surface_normals_pretrained(image_path)
     save_surface_preview(predicted_normals, os.path.join(frames_dir, "surface_preview.jpg"))
+    save_gravity_preview(image_path, gravity_result, os.path.join(frames_dir, "gravity_preview.jpg"))
     save_probability_preview(normals, os.path.join(frames_dir, "probability_preview.jpg"))
+    print(f"Gravity estimate: up={gravity_result['gravity_cam'].tolist()}  "
+          f"conf={gravity_result['confidence']:.2f}")
 
     mask_path_cache = {}
     mask_cache = {}

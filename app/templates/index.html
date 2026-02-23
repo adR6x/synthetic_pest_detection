@@ -75,20 +75,26 @@
             </div>
         </div>
 
-        {% if depth_preview_url or surface_preview_url %}
+        {% if depth_preview_url or surface_preview_url or gravity_preview_url %}
         <div class="video-section">
-            <h3>Depth / Surface Previews</h3>
-            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
+            <h3>Scene Analysis</h3>
+            <div style="display:flex; gap:16px; align-items:flex-start;">
                 {% if depth_preview_url %}
-                <div>
+                <div style="flex:1 1 0; min-width:0;">
                     <p style="margin:0 0 8px 0;"><strong>Predicted Depth</strong></p>
-                    <img src="{{ depth_preview_url }}" width="320" alt="predicted depth preview">
+                    <img src="{{ depth_preview_url }}" style="width:100%; display:block;" alt="predicted depth preview">
                 </div>
                 {% endif %}
                 {% if surface_preview_url %}
-                <div>
+                <div style="flex:1 1 0; min-width:0;">
                     <p style="margin:0 0 8px 0;"><strong>Surface Normals</strong></p>
-                    <img src="{{ surface_preview_url }}" width="320" alt="surface normals preview">
+                    <img src="{{ surface_preview_url }}" style="width:100%; display:block;" alt="surface normals preview">
+                </div>
+                {% endif %}
+                {% if gravity_preview_url %}
+                <div style="flex:1 1 0; min-width:0;">
+                    <p style="margin:0 0 8px 0;"><strong>Gravity / Camera Up</strong></p>
+                    <img src="{{ gravity_preview_url }}" style="width:100%; display:block;" alt="gravity direction preview">
                 </div>
                 {% endif %}
             </div>

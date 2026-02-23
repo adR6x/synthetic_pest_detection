@@ -96,6 +96,7 @@ def results(job_id):
     labels_dir = os.path.join(LABELS_DIR, job_id)
     depth_preview_path = os.path.join(frames_dir, "depth_preview.jpg")
     surface_preview_path = os.path.join(frames_dir, "surface_preview.jpg")
+    gravity_preview_path = os.path.join(frames_dir, "gravity_preview.jpg")
     probability_preview_path = os.path.join(frames_dir, "probability_preview.jpg")
 
     if not os.path.exists(video_path):
@@ -131,6 +132,11 @@ def results(job_id):
         surface_preview_url=(
             url_for("serve_frame", job_id=job_id, filename="surface_preview.jpg")
             if os.path.exists(surface_preview_path)
+            else None
+        ),
+        gravity_preview_url=(
+            url_for("serve_frame", job_id=job_id, filename="gravity_preview.jpg")
+            if os.path.exists(gravity_preview_path)
             else None
         ),
         probability_preview_url=(
