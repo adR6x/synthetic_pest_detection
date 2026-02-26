@@ -225,6 +225,12 @@ def _assemble_video(frames_dir, video_path):
         raise FileNotFoundError(f"No frames found in {frames_dir}")
 
     ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        try:
+            import imageio_ffmpeg
+            ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            pass
     if ffmpeg:
         pattern = os.path.join(frames_dir, "frame_%04d.png")
         cmd = [

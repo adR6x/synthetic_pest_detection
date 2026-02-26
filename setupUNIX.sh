@@ -70,19 +70,10 @@ SITE=$(poetry run python -c "import site; print(site.getsitepackages()[0])")
 cp -r "$STUB_SRC" "$SITE/"
 info "mmcv stub installed to $SITE/mmcv"
 
-# ─── ffmpeg ───────────────────────────────────────────────────────────────────
-if command -v ffmpeg &>/dev/null; then
-    info "ffmpeg already installed ($(ffmpeg -version 2>&1 | head -1))"
-else
-    info "Installing ffmpeg..."
-    if command -v apt-get &>/dev/null; then
-        sudo apt-get install -y ffmpeg
-    elif command -v brew &>/dev/null; then
-        brew install ffmpeg
-    else
-        warn "Could not install ffmpeg automatically. Please install it manually (https://ffmpeg.org/download.html)."
-    fi
-fi
+# ─── ffmpeg (via imageio-ffmpeg — no sudo required) ──────────────────────────
+# imageio-ffmpeg ships a static ffmpeg binary inside the venv.
+# System ffmpeg is used if present; imageio-ffmpeg acts as a no-sudo fallback.
+info "ffmpeg bundled via imageio-ffmpeg (already in pyproject.toml dependencies)"
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
