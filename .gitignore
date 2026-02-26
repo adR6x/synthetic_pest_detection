@@ -31,3 +31,6 @@ Thumbs.db
 # Blender
 *.blend1
 *.blend2
+
+# TripoSR clone (created by setup scripts)
+.triposr_clone/

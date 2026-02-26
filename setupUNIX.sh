@@ -54,9 +54,9 @@ else
 fi
 
 # ─── Install dependencies ─────────────────────────────────────────────────────
-info "Installing project dependencies (including TripoSR)..."
+info "Installing project dependencies..."
 cd "$(dirname "$0")"
-poetry install --with triposr
+poetry install
 
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 # mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab
@@ -69,6 +69,25 @@ STUB_SRC="$(dirname "$0")/generator/mmcv_stub/mmcv"
 SITE=$(poetry run python -c "import site; print(site.getsitepackages()[0])")
 cp -r "$STUB_SRC" "$SITE/"
 info "mmcv stub installed to $SITE/mmcv"
+
+# ─── TripoSR stub ─────────────────────────────────────────────────────────────
+# TripoSR has no setup.py/pyproject.toml so it cannot be pip-installed.
+# We clone it and copy the tsr/ package into the virtualenv, same approach
+# as mmcv above. torchmcubes (marching-cubes kernel) is installed via pip.
+info "Installing TripoSR (clone + copy tsr/ package into venv)..."
+TRIPOSR_CLONE_DIR="$(dirname "$0")/.triposr_clone"
+if [ -d "$TRIPOSR_CLONE_DIR" ]; then
+    info "TripoSR already cloned — pulling latest..."
+    git -C "$TRIPOSR_CLONE_DIR" pull --ff-only
+else
+    git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git "$TRIPOSR_CLONE_DIR"
+fi
+cp -r "$TRIPOSR_CLONE_DIR/tsr" "$SITE/"
+info "tsr package installed to $SITE/tsr"
+
+info "Installing torchmcubes (TripoSR mesh extraction kernel)..."
+poetry run pip install --quiet git+https://github.com/tatsy/torchmcubes.git
+info "torchmcubes installed"
 
 # ─── ffmpeg (via imageio-ffmpeg — no sudo required) ──────────────────────────
 # imageio-ffmpeg ships a static ffmpeg binary inside the venv.

@@ -96,9 +96,9 @@ if ($hasShellPlugin) {
     poetry self add poetry-plugin-shell
 }
 
-Info "Installing project dependencies (including TripoSR)..."
+Info "Installing project dependencies..."
 Set-Location -Path $PSScriptRoot
-poetry install --with triposr
+poetry install
 
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 # mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab
@@ -113,6 +113,28 @@ $dest = Join-Path $site "mmcv"
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
 Copy-Item $stubSrc $dest -Recurse
 Info "mmcv stub installed to $dest"
+
+# ─── TripoSR stub ─────────────────────────────────────────────────────────────
+# TripoSR has no setup.py/pyproject.toml so it cannot be pip-installed.
+# We clone it and copy the tsr/ package into the virtualenv, same approach
+# as mmcv above. torchmcubes (marching-cubes kernel) is installed via pip.
+Info "Installing TripoSR (clone + copy tsr/ package into venv)..."
+$triposrClone = Join-Path $PSScriptRoot ".triposr_clone"
+if (Test-Path $triposrClone) {
+    Info "TripoSR already cloned — pulling latest..."
+    git -C $triposrClone pull --ff-only
+} else {
+    git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git $triposrClone
+}
+$tsrSrc = Join-Path $triposrClone "tsr"
+$tsrDest = Join-Path $site "tsr"
+if (Test-Path $tsrDest) { Remove-Item $tsrDest -Recurse -Force }
+Copy-Item $tsrSrc $tsrDest -Recurse
+Info "tsr package installed to $tsrDest"
+
+Info "Installing torchmcubes (TripoSR mesh extraction kernel)..."
+poetry run pip install --quiet git+https://github.com/tatsy/torchmcubes.git
+Info "torchmcubes installed"
 
 Write-Host ""
 Write-Host "Setup complete! Launching poetry shell..." -ForegroundColor Green

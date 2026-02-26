@@ -21,13 +21,8 @@ imageio-ffmpeg = ">=0.4"
 requests = ">=2.28"
 rembg = {extras = ["cpu"], version = ">=0.1"}
 trimesh = ">=3.0"
-
-# TripoSR — install with: poetry install --with triposr
-[tool.poetry.group.triposr]
-optional = true
-
-[tool.poetry.group.triposr.dependencies]
-tsr = {git = "https://github.com/VAST-AI-Research/TripoSR.git"}
+omegaconf = ">=2.3"
+huggingface-hub = ">=0.19"
 
 [build-system]
 requires = ["poetry-core"]
