@@ -46,7 +46,7 @@ BLENDER_PATH = _find_blender()
 RENDER_WIDTH = 640
 RENDER_HEIGHT = 480
 FPS = 10
-NUM_FRAMES = 20
+NUM_FRAMES = 100
 
 # Output directories (relative to project root)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
