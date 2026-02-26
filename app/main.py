@@ -49,6 +49,9 @@ threading.Thread(target=_background_warm_models, daemon=True).start()
 
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "webp"}
 
+# Stores total render time (seconds) keyed by job_id
+_render_times = {}
+
 
 def _allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -76,12 +79,14 @@ def upload():
     file.save(save_path)
 
     try:
+        t0 = time.time()
         result = generate_video(
             save_path,
             frames_root=FRAMES_DIR,
             labels_root=LABELS_DIR,
             videos_root=VIDEOS_DIR,
         )
+        _render_times[result["job_id"]] = round(time.time() - t0, 1)
     except Exception as e:
         flash(f"Generation failed: {e}")
         return redirect(url_for("index"))
@@ -154,6 +159,7 @@ def results(job_id):
         ],
         frames=frames,
         labels_json=json.dumps(labels_by_frame),
+        render_time=_render_times.get(job_id),
     )
 
 

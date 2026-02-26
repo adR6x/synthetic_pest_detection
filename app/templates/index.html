@@ -61,17 +61,18 @@
         {% if job_id %}
         <hr>
         <h2>Results: {{ job_id }}</h2>
+        {% if render_time is not none %}
+        <p style="color:#555;">Total render time: <strong>{{ render_time }}s</strong></p>
+        {% endif %}
 
-        {% if frames %}
+        {% if video_url %}
         <div class="video-section">
             <h3>Animated Preview</h3>
             <div class="player-wrapper" style="position:relative; display:inline-block;">
-                <img id="player" src="{{ url_for('serve_frame', job_id=job_id, filename=frames[0]) }}" width="640" alt="frame">
+                <video id="player" width="640" controls autoplay loop muted>
+                    <source src="{{ video_url }}" type="video/mp4">
+                </video>
                 <canvas id="bbox-canvas" width="640" height="480" style="position:absolute; top:0; left:0; pointer-events:none;"></canvas>
-                <div class="player-controls">
-                    <button id="play-btn" class="btn" onclick="togglePlay()">Play</button>
-                    <span id="frame-counter">1 / {{ frames|length }}</span>
-                </div>
             </div>
         </div>
 
@@ -116,17 +117,13 @@
         {% endif %}
 
         <script>
-            const frameSrcs = [
-                {% for frame in frames %}
-                "{{ url_for('serve_frame', job_id=job_id, filename=frame) }}",
-                {% endfor %}
-            ];
             const frameNames = [
                 {% for frame in frames %}
                 "{{ frame }}",
                 {% endfor %}
             ];
             const labelsData = {{ labels_json|safe if labels_json else '{}' }};
+            const FPS = 10;
 
             const PEST_COLORS = {
                 "mouse": "#00ff00",
@@ -134,83 +131,50 @@
                 "cockroach": "#ff0000",
             };
 
-            let currentFrame = 0;
-            let playing = false;
-            let timer = null;
-
             function drawBboxes(frameIdx) {
                 const canvas = document.getElementById("bbox-canvas");
-                const img = document.getElementById("player");
+                const video = document.getElementById("player");
                 const ctx = canvas.getContext("2d");
 
-                // Match canvas size to displayed image
-                canvas.width = img.clientWidth;
-                canvas.height = img.clientHeight;
+                canvas.width = video.clientWidth;
+                canvas.height = video.clientHeight;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 const label = labelsData[frameNames[frameIdx]];
                 if (!label || !label.annotations) return;
 
-                // Scale factor from original (640x480) to displayed size
                 const scaleX = canvas.width / (label.width || 640);
                 const scaleY = canvas.height / (label.height || 480);
 
                 for (const ann of label.annotations) {
                     const [x1, y1, x2, y2] = ann.bbox;
-                    const sx = x1 * scaleX;
-                    const sy = y1 * scaleY;
-                    const sw = (x2 - x1) * scaleX;
-                    const sh = (y2 - y1) * scaleY;
+                    const sx = x1 * scaleX, sy = y1 * scaleY;
+                    const sw = (x2 - x1) * scaleX, sh = (y2 - y1) * scaleY;
 
                     const color = PEST_COLORS[ann.pest_type] || "#ffffff";
 
-                    // Draw bounding box
                     ctx.strokeStyle = color;
                     ctx.lineWidth = 2;
                     ctx.strokeRect(sx, sy, sw, sh);
 
-                    // Draw label background
                     const text = ann.pest_type;
                     ctx.font = "bold 14px sans-serif";
                     const textW = ctx.measureText(text).width;
                     ctx.fillStyle = color;
                     ctx.fillRect(sx, sy - 20, textW + 8, 20);
-
-                    // Draw label text
                     ctx.fillStyle = "#000";
                     ctx.fillText(text, sx + 4, sy - 5);
                 }
             }
 
-            function showFrame(idx) {
-                document.getElementById("player").src = frameSrcs[idx];
-                document.getElementById("frame-counter").textContent =
-                    (idx + 1) + " / " + frameSrcs.length;
-                // Draw bboxes after image loads
-                document.getElementById("player").onload = function() {
-                    drawBboxes(idx);
-                };
-            }
-
-            function togglePlay() {
-                playing = !playing;
-                document.getElementById("play-btn").textContent = playing ? "Pause" : "Play";
-                if (playing) {
-                    timer = setInterval(nextFrame, 500);
-                } else {
-                    clearInterval(timer);
-                }
-            }
-
-            function nextFrame() {
-                currentFrame = (currentFrame + 1) % frameSrcs.length;
-                showFrame(currentFrame);
-            }
-
-            // Draw bboxes on first frame once it loads
-            document.getElementById("player").onload = function() {
-                drawBboxes(0);
-            };
+            const video = document.getElementById("player");
+            video.addEventListener("timeupdate", function() {
+                const frameIdx = Math.min(
+                    Math.floor(video.currentTime * FPS),
+                    frameNames.length - 1
+                );
+                drawBboxes(frameIdx);
+            });
         </script>
         {% endif %}
         {% endif %}

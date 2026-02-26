@@ -6,6 +6,7 @@ Calls Blender as a subprocess and assembles rendered frames into an MP4.
 import json
 import os
 import random
+import shutil
 import subprocess
 import uuid
 
@@ -209,27 +210,46 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
 
 
 def _assemble_video(frames_dir, video_path):
-    """Combine rendered PNG frames into an MP4 video using OpenCV.
+    """Combine rendered PNG frames into an H.264 MP4 using ffmpeg (browser-compatible).
+
+    Falls back to OpenCV (mp4v) if ffmpeg is not available.
 
     Args:
         frames_dir: Directory containing frame_XXXX.png files.
         video_path: Output MP4 path.
     """
     frame_files = sorted(
-        f for f in os.listdir(frames_dir) if f.endswith(".png")
+        f for f in os.listdir(frames_dir)
+        if f.startswith("frame_") and f.endswith(".png")
     )
     if not frame_files:
         raise FileNotFoundError(f"No frames found in {frames_dir}")
 
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        pattern = os.path.join(frames_dir, "frame_%04d.png")
+        cmd = [
+            ffmpeg, "-y",
+            "-framerate", str(FPS),
+            "-i", pattern,
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            video_path,
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed:\n{result.stderr}")
+        print(f"Video assembled (H.264): {video_path} ({len(frame_files)} frames)")
+        return
+
+    # Fallback: OpenCV with mp4v (may not play in all browsers)
+    print("WARNING: ffmpeg not found, falling back to OpenCV mp4v codec.")
     first_frame = cv2.imread(os.path.join(frames_dir, frame_files[0]))
     h, w = first_frame.shape[:2]
-
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(video_path, fourcc, FPS, (w, h))
-
     for fname in frame_files:
-        frame = cv2.imread(os.path.join(frames_dir, fname))
-        writer.write(frame)
-
+        writer.write(cv2.imread(os.path.join(frames_dir, fname)))
     writer.release()
-    print(f"Video assembled: {video_path} ({len(frame_files)} frames)")
+    print(f"Video assembled (mp4v): {video_path} ({len(frame_files)} frames)")
