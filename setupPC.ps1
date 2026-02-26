@@ -133,8 +133,12 @@ Copy-Item $tsrSrc $tsrDest -Recurse
 Info "tsr package installed to $tsrDest"
 
 Info "Installing torchmcubes (TripoSR mesh extraction kernel)..."
-poetry run pip install --quiet git+https://github.com/tatsy/torchmcubes.git
-Info "torchmcubes installed"
+try {
+    poetry run pip install --quiet git+https://github.com/tatsy/torchmcubes.git 2>&1 | Out-Null
+    Info "torchmcubes installed"
+} catch {
+    Warn "torchmcubes build failed (requires CUDA + GPU) — TripoSR 3D generation will not work on this machine. Install CUDA and re-run to enable it."
+}
 
 Write-Host ""
 Write-Host "Setup complete! Launching poetry shell..." -ForegroundColor Green

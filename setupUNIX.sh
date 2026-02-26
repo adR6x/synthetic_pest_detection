@@ -86,8 +86,11 @@ cp -r "$TRIPOSR_CLONE_DIR/tsr" "$SITE/"
 info "tsr package installed to $SITE/tsr"
 
 info "Installing torchmcubes (TripoSR mesh extraction kernel)..."
-poetry run pip install --quiet git+https://github.com/tatsy/torchmcubes.git
-info "torchmcubes installed"
+if poetry run pip install --quiet git+https://github.com/tatsy/torchmcubes.git 2>&1; then
+    info "torchmcubes installed"
+else
+    warn "torchmcubes build failed (requires CUDA + GPU) — TripoSR 3D generation will not work on this machine. Install CUDA and re-run to enable it."
+fi
 
 # ─── ffmpeg (via imageio-ffmpeg — no sudo required) ──────────────────────────
 # imageio-ffmpeg ships a static ffmpeg binary inside the venv.
