@@ -94,14 +94,14 @@ PEST_REAL_SIZES_M = {
     "cockroach": 0.04,   # ~4 cm body
 }
 
-# Paths to imported 3D model files (.obj or .glb).
-# Set to None to use built-in procedural geometry (UV-sphere ellipsoids).
-# Place downloaded models in generator/models/ and set the path here.
-# See README.md -> 3D Pest Models for recommended free model sources.
+# Paths to imported 3D model files (.glb), one list per pest type.
+# Each entry is a path relative to the project root.
+# Empty list = use built-in procedural geometry (UV-sphere ellipsoids).
+# Populated automatically by the Model Curator when you click "Keep".
 PEST_MODEL_PATHS = {
-    "mouse": None,        # e.g. "generator/models/mouse.glb"
-    "rat": None,          # e.g. "generator/models/rat.glb"
-    "cockroach": None,    # e.g. "generator/models/cockroach.obj"
+    "mouse": [],
+    "rat": [],
+    "cockroach": [],
 }
 
 # The model's local axis that points toward the head (forward direction).

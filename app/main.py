@@ -241,10 +241,22 @@ def curator():
     for c in all_candidates:
         candidates_by_taxon.setdefault(c["taxon_key"], []).append(c)
 
+    # Scan generator/models/<pest_type>/ for already-kept .glb files
+    kept_models: dict[str, list[str]] = {}
+    for pest_type in ["mouse", "rat", "cockroach"]:
+        pest_dir = os.path.join(MODELS_DIR, pest_type)
+        if os.path.isdir(pest_dir):
+            kept_models[pest_type] = sorted(
+                f for f in os.listdir(pest_dir) if f.endswith(".glb")
+            )
+        else:
+            kept_models[pest_type] = []
+
     return render_template(
         "curator.html",
         species_info=SPECIES_INFO,
         candidates_by_taxon=candidates_by_taxon,
+        kept_models=kept_models,
         triposr_available=_check_triposr(),
     )
 

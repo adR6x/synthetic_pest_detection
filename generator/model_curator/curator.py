@@ -12,6 +12,7 @@ generator/models/<pest_type>.glb      <- git-tracked; written only by keep_candi
 generator/model_curator/discards.json <- git-tracked; GBIF URLs that were discarded
 """
 
+import ast
 import json
 import os
 import re
@@ -360,7 +361,11 @@ def keep_candidate(
     config_path: str,
     species_info: dict,
 ) -> dict:
-    """Copy the chosen .glb into generator/models/ and patch config.py."""
+    """Copy the chosen .glb into generator/models/<pest_type>/ and append to config.py.
+
+    Each kept model gets a unique filename (<taxon_key>_<candidate_index>.glb)
+    so multiple keeps never overwrite each other.
+    """
     pest_type = species_info.get(taxon_key, {}).get("pest_type")
     if not pest_type:
         return {"status": "error", "error": f"Unknown taxon_key: {taxon_key}"}
@@ -369,30 +374,39 @@ def keep_candidate(
     if not os.path.exists(src_glb):
         return {"status": "error", "error": f"Model file not found: {src_glb}"}
 
-    dst_glb = os.path.join(models_dir, f"{pest_type}.glb")
+    # Save into per-pest subdirectory with a unique filename
+    pest_dir = os.path.join(models_dir, pest_type)
+    os.makedirs(pest_dir, exist_ok=True)
+    filename = f"{taxon_key}_{candidate_index}.glb"
+    dst_glb = os.path.join(pest_dir, filename)
     shutil.copy2(src_glb, dst_glb)
 
-    rel_path = os.path.join("generator", "models", f"{pest_type}.glb").replace("\\", "/")
-    _update_config_pest_model_paths(config_path, pest_type, rel_path)
+    rel_path = f"generator/models/{pest_type}/{filename}"
+    _append_config_pest_model_path(config_path, pest_type, rel_path)
 
     return {"status": "ok", "pest_type": pest_type, "model_path": rel_path}
 
 
-def _update_config_pest_model_paths(config_path: str, pest_type: str, glb_rel_path: str):
-    """Regex-patch PEST_MODEL_PATHS in config.py for *pest_type*."""
+def _append_config_pest_model_path(config_path: str, pest_type: str, new_glb_path: str):
+    """Append *new_glb_path* to the PEST_MODEL_PATHS list for *pest_type* in config.py."""
     with open(config_path, "r", encoding="utf-8") as f:
         content = f.read()
 
+    # Match:  "mouse": [],   or   "mouse": ["path1", "path2"],
     pattern = re.compile(
-        r'("' + re.escape(pest_type) + r'"\s*:\s*)(?:None|"[^"]*")(.*)'
-    )
-    new_content, count = pattern.subn(
-        lambda m: m.group(1) + f'"{glb_rel_path}"' + m.group(2),
-        content,
+        r'("' + re.escape(pest_type) + r'"\s*:\s*)(\[[^\[\]]*\])(.*)'
     )
 
+    def replacer(m):
+        current_list = ast.literal_eval(m.group(2))
+        if new_glb_path not in current_list:
+            current_list.append(new_glb_path)
+        return m.group(1) + json.dumps(current_list) + m.group(3)
+
+    new_content, count = pattern.subn(replacer, content)
+
     if count == 0:
-        print(f"WARNING: could not find '{pest_type}' entry in PEST_MODEL_PATHS")
+        print(f"WARNING: could not find '{pest_type}' list in PEST_MODEL_PATHS")
         return
 
     with open(config_path, "w", encoding="utf-8") as f:

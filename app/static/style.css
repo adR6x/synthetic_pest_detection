@@ -410,3 +410,22 @@ video {
 .curator-actions {
     flex-shrink: 0;
 }
+
+/* Kept models list */
+.kept-models-list {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 4px;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+}
+
+.kept-models-list ul {
+    margin: 0.25rem 0 0 1.1rem;
+    padding: 0;
+}
+
+.kept-models-list li {
+    margin: 0.1rem 0;
+}

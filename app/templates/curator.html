@@ -67,6 +67,19 @@
             <span class="progress-label" id="progress-label-{{ taxon_key }}">Downloading…</span>
         </div>
 
+        <!-- Already-kept models for this pest type -->
+        {% set kept = kept_models.get(info.pest_type, []) %}
+        {% if kept %}
+        <div class="kept-models-list">
+            <strong>Kept models ({{ kept | length }}):</strong>
+            <ul>
+            {% for fname in kept %}
+                <li><code>generator/models/{{ info.pest_type }}/{{ fname }}</code></li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
         <!-- Candidate grid -->
         <div class="candidate-grid" id="grid-{{ taxon_key }}">
             {% if candidates %}
@@ -266,19 +279,6 @@ document.querySelectorAll('.btn-keep').forEach(btn => {
             if (data.status === 'ok') {
                 btn.textContent = 'Kept!';
                 btn.classList.add('btn-kept');
-                // Dim other cards for the same pest_type
-                const pestType = data.pest_type;
-                document.querySelectorAll('.curator-section').forEach(section => {
-                    if (section.dataset.pest === pestType) {
-                        section.querySelectorAll('.candidate-card').forEach(card => {
-                            const cardIndex = card.dataset.index;
-                            const cardTaxon  = card.dataset.taxon;
-                            if (!(cardTaxon === taxon && cardIndex === index)) {
-                                card.classList.add('card-dimmed');
-                            }
-                        });
-                    }
-                });
             } else {
                 btn.textContent = 'Error';
                 btn.disabled = false;
