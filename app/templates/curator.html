@@ -292,14 +292,37 @@ document.querySelectorAll('.btn-keep').forEach(btn => {
     });
 });
 
-// ---- Discard (visual only) ----
+// ---- Discard — deletes files server-side + logs URL to discards.json ----
 document.querySelectorAll('.btn-discard').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
         const taxon = btn.dataset.taxon;
         const index = btn.dataset.index;
         const card = document.getElementById('card-' + taxon + '-' + index);
-        if (card) {
-            card.classList.add('card-discarded');
+        btn.disabled = true;
+        btn.textContent = 'Discarding…';
+
+        try {
+            const resp = await fetch('/curator/discard', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({taxon_key: taxon, candidate_index: parseInt(index)}),
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                // Fade out then remove card entirely
+                if (card) {
+                    card.classList.add('card-discarded');
+                    setTimeout(() => card.remove(), 400);
+                }
+            } else {
+                btn.disabled = false;
+                btn.textContent = 'Discard';
+                alert('Discard failed: ' + (data.error || 'unknown'));
+            }
+        } catch (err) {
+            btn.disabled = false;
+            btn.textContent = 'Discard';
+            alert('Network error: ' + err.message);
         }
     });
 });

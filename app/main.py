@@ -17,6 +17,7 @@ from generator.model_curator.curator import (
     get_curator_status,
     run_pipeline_for_taxon,
     keep_candidate,
+    discard_candidate,
     TRIPOSR_AVAILABLE,
 )
 
@@ -24,6 +25,8 @@ from generator.model_curator.curator import (
 CURATOR_DIR = os.path.join(PROJECT_ROOT, "outputs", "curator")
 MODELS_DIR = os.path.join(PROJECT_ROOT, "generator", "models")
 CONFIG_PATH = os.path.join(PROJECT_ROOT, "generator", "config.py")
+# Git-tracked: logs discarded GBIF URLs so they are never re-downloaded
+DISCARDS_PATH = os.path.join(PROJECT_ROOT, "generator", "model_curator", "discards.json")
 os.makedirs(CURATOR_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
 
@@ -271,6 +274,7 @@ def curator_run():
                 CURATOR_DIR,
                 n_images=5,
                 triposr_available=triposr,
+                discards_path=DISCARDS_PATH,
             )
             all_results[key] = results
         except Exception as e:
@@ -302,6 +306,29 @@ def curator_keep():
     )
     if result["status"] == "error":
         return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.route("/curator/discard", methods=["POST"])
+def curator_discard():
+    """Delete candidate files and log its GBIF URL to discards.json.
+
+    Body JSON: {"taxon_key": "7429082", "candidate_index": 2}
+    discards.json is git-tracked so the URL is never re-downloaded.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    taxon_key = data.get("taxon_key", "")
+    candidate_index = data.get("candidate_index")
+
+    if not taxon_key or candidate_index is None:
+        return jsonify({"status": "error", "error": "taxon_key and candidate_index required"}), 400
+
+    result = discard_candidate(
+        taxon_key=taxon_key,
+        candidate_index=int(candidate_index),
+        curator_dir=CURATOR_DIR,
+        discards_path=DISCARDS_PATH,
+    )
     return jsonify(result)
 
 
