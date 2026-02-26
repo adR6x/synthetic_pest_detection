@@ -20,18 +20,6 @@ poetry shell        # activate the environment
 poetry shell        # activate the environment
 ```
 
-If PowerShell blocks script execution, run:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\setupPC.ps1
-```
-
-> **Note on mmcv:** Metric3D v2 internally imports `mmcv` (OpenMMLab), which has
-> no pre-built wheels for PyTorch 2.7 + Python 3.12. The setup scripts install a
-> minimal `mmcv_stub/` shim that delegates the two symbols used at inference time
-> (`Config`, `DictAction`) to `mmengine`, the official mmcv successor. No separate
-> `mmcv` installation is needed.
-
 ## Running the App
 
 Inside `poetry shell`:
@@ -66,7 +54,8 @@ python -m training.train
 │   ├── scene_setup.py        # Background plane, orthographic camera, lighting (bpy)
 │   ├── pest_models.py        # 3D pest geometry: imported .obj/.glb or UV-sphere fallback (bpy)
 │   ├── pest_animation.py     # Random-walk keyframe animation, movement-aligned rotation (bpy)
-│   └── labeler.py            # 3D->2D bbox projection + JSON labels (bpy)
+│   ├── labeler.py            # 3D->2D bbox projection + JSON labels (bpy)
+│   └── mmcv_stub/            # Minimal mmcv shim (delegates to mmengine; see Setup note)
 │
 ├── training/
 │   ├── config.py             # Hyperparameters, label mapping
@@ -77,7 +66,6 @@ python -m training.train
 ├── setupUNIX.sh              # One-command setup for macOS/Linux/WSL (Poetry)
 ├── setupPC.ps1               # One-command setup for Windows PowerShell (Poetry)
 ├── pyproject.toml            # Poetry dependencies
-├── mmcv_stub/                # Minimal mmcv shim (delegates to mmengine; see Setup note)
 └── outputs/                  # Generated data (gitignored)
     ├── uploads/
     ├── frames/{job_id}/
@@ -194,6 +182,12 @@ Alternatives considered:
   depth + focal length but no normals.
 - *UniDepth v2* (Piccinelli et al., CVPR 2024 + 2025, [arXiv:2502.20110](https://arxiv.org/abs/2502.20110)) —
   depth + camera intrinsics but no normals.
+
+> **Note on mmcv:** Metric3D v2 internally imports `mmcv` (OpenMMLab), which has
+> no pre-built wheels for PyTorch 2.7 + Python 3.12. The setup scripts install a
+> minimal `mmcv_stub/` shim that delegates the two symbols used at inference time
+> (`Config`, `DictAction`) to `mmengine`, the official mmcv successor. No separate
+> `mmcv` installation is needed.
 
 ### Gravity / Camera-Up Estimation — Classical Vanishing-Point Detection
 Estimates the vertical vanishing point (and hence the world-up direction in camera

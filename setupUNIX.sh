@@ -65,7 +65,7 @@ poetry install
 # by mmengine (the official successor).  We copy a minimal stub into the
 # virtualenv so torch.hub.load("YvanYin/Metric3D", ...) works out of the box.
 info "Installing mmcv stub (delegates to mmengine)..."
-STUB_SRC="$(dirname "$0")/mmcv_stub/mmcv"
+STUB_SRC="$(dirname "$0")/generator/mmcv_stub/mmcv"
 SITE=$(poetry run python -c "import site; print(site.getsitepackages()[0])")
 cp -r "$STUB_SRC" "$SITE/"
 info "mmcv stub installed to $SITE/mmcv"
