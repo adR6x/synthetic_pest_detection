@@ -96,9 +96,9 @@ if ($hasShellPlugin) {
     poetry self add poetry-plugin-shell
 }
 
-Info "Installing project dependencies..."
+Info "Installing project dependencies (including TripoSR)..."
 Set-Location -Path $PSScriptRoot
-poetry install
+poetry install --with triposr
 
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 # mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab

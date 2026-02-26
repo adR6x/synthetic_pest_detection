@@ -54,9 +54,9 @@ else
 fi
 
 # ─── Install dependencies ─────────────────────────────────────────────────────
-info "Installing project dependencies..."
+info "Installing project dependencies (including TripoSR)..."
 cd "$(dirname "$0")"
-poetry install
+poetry install --with triposr
 
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 # mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab
