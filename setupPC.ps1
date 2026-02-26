@@ -115,11 +115,6 @@ Copy-Item $stubSrc $dest -Recurse
 Info "mmcv stub installed to $dest"
 
 Write-Host ""
-Write-Host "Setup complete!" -ForegroundColor Green
+Write-Host "Setup complete! Launching poetry shell..." -ForegroundColor Green
 Write-Host ""
-Write-Host "  Activate your environment with:"
-Write-Host "    poetry shell" -ForegroundColor Yellow
-Write-Host ""
-Write-Host "  Or run a single command without activating:"
-Write-Host "    poetry run python <script.py>" -ForegroundColor Yellow
-Write-Host ""
+poetry shell

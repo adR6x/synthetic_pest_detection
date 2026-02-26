@@ -77,11 +77,6 @@ info "ffmpeg bundled via imageio-ffmpeg (already in pyproject.toml dependencies)
 
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${GREEN}✓ Setup complete!${NC}"
+echo -e "${GREEN}✓ Setup complete! Launching poetry shell...${NC}"
 echo ""
-echo "  Activate your environment with:"
-echo -e "    ${YELLOW}poetry shell${NC}"
-echo ""
-echo "  Or run a single command without activating:"
-echo -e "    ${YELLOW}poetry run python <script.py>${NC}"
-echo ""
+exec poetry shell

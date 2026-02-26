@@ -39,7 +39,7 @@ Inside `poetry shell`:
 ```bash
 flask run
 # Open http://localhost:5000
-# Upload a kitchen image -> generates video + 10 labeled frames
+# Upload a kitchen image -> generates video + 100 labeled frames
 ```
 
 ## Training the Classifier
@@ -137,7 +137,7 @@ unreliable depth estimates at image borders or textureless regions.
     ├── uploads/
     ├── frames/{job_id}/
     ├── videos/{job_id}.mp4
-    └── labels/{job_id}/
+    └── labels/{job_id}/annotations.json   # COCO-format, all 100 frames
 ```
 
 ## Architecture
@@ -153,12 +153,12 @@ User uploads kitchen.jpg
        2. Probability map    — sigmoid slope + normal coherence per pest type
        3. Pest sampling      — positions drawn from probability map
        4. Depth-based scale  — blender_scale = real_size × fx × PLANE_WIDTH / (depth × RENDER_WIDTH)
-       5. Blender subprocess — renders 10 frames at 640x480 via EEVEE
+       5. Blender subprocess — renders 100 frames at 640x480 via EEVEE
           -> scene_setup.py      background plane, camera, sun light
           -> pest_models.py      load_pest(): import .obj/.glb or fallback to ellipsoid, apply scale
           -> pest_animation.py   random-walk keyframes + heading aligned to movement direction
           -> labeler.py          3D->2D bbox projection + JSON
-       5. OpenCV             — assembles PNGs into MP4 at 2 FPS
+       6. ffmpeg (H.264)     — assembles PNGs into MP4 at 10 FPS; OpenCV mp4v as fallback
   -> Flask serves video + frame gallery + depth/normal/gravity/mask previews
 ```
 
@@ -222,24 +222,37 @@ Recognition at Scale*, ICLR 2021.
 
 ## Label Format
 
-Per-frame JSON in `outputs/labels/{job_id}/frame_XXXX.json`:
+A single COCO-format JSON at `outputs/labels/{job_id}/annotations.json`:
 
 ```json
 {
-  "frame": 1,
-  "width": 640,
-  "height": 480,
+  "images": [
+    {"id": 1, "file_name": "frame_0001.png", "width": 640, "height": 480},
+    ...
+  ],
   "annotations": [
     {
-      "pest_type": "mouse",
-      "bbox": [x_min, y_min, x_max, y_max],
-      "confidence": 1.0
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "bbox": [x, y, width, height],
+      "area": width * height,
+      "iscrowd": 0
     }
+  ],
+  "categories": [
+    {"id": 1, "name": "mouse",      "supercategory": "pest"},
+    {"id": 2, "name": "rat",        "supercategory": "pest"},
+    {"id": 3, "name": "cockroach",  "supercategory": "pest"}
   ]
 }
 ```
 
-## Classes
+Note: `bbox` follows COCO convention `[x, y, width, height]` (top-left origin), not `[x_min, y_min, x_max, y_max]`.
+
+## Classes (ViT Classifier)
+
+Label mapping used by `training/config.py` (different from COCO category IDs above, which start at 1):
 
 | ID | Label |
 |----|-------|
