@@ -187,16 +187,15 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         "--", config_json,
     ]
 
+    import time as _time
     print(f"Running Blender for job {job_id}...")
+    _t0 = _time.monotonic()
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    print(f"Blender finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
 
     if result.returncode != 0:
         print(f"Blender stderr: {result.stderr}")
         raise RuntimeError(f"Blender failed with return code {result.returncode}")
-
-    print(result.stdout)
-    if result.stderr.strip():
-        print(f"Blender stderr (non-fatal): {result.stderr}")
 
     # Assemble frames into MP4
     _assemble_video(frames_dir, video_path)

@@ -70,6 +70,20 @@ SITE=$(poetry run python -c "import site; print(site.getsitepackages()[0])")
 cp -r "$STUB_SRC" "$SITE/"
 info "mmcv stub installed to $SITE/mmcv"
 
+# ─── ffmpeg ───────────────────────────────────────────────────────────────────
+if command -v ffmpeg &>/dev/null; then
+    info "ffmpeg already installed ($(ffmpeg -version 2>&1 | head -1))"
+else
+    info "Installing ffmpeg..."
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get install -y ffmpeg
+    elif command -v brew &>/dev/null; then
+        brew install ffmpeg
+    else
+        warn "Could not install ffmpeg automatically. Please install it manually (https://ffmpeg.org/download.html)."
+    fi
+fi
+
 # ─── Done ─────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}✓ Setup complete!${NC}"
