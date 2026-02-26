@@ -24,7 +24,7 @@ from scene_setup import (
 )
 from pest_models import load_pest
 from pest_animation import animate_pest
-from labeler import generate_frame_label
+from labeler import collect_frame_annotations, save_coco_dataset
 
 
 def main():
@@ -87,7 +87,18 @@ def main():
             forward_axis=forward_axis,
         )
 
-    # 4. Render each frame and generate labels
+    CATEGORY_MAP = {"mouse": 1, "rat": 2, "cockroach": 3}
+    CATEGORIES = [
+        {"id": 1, "name": "mouse",      "supercategory": "pest"},
+        {"id": 2, "name": "rat",        "supercategory": "pest"},
+        {"id": 3, "name": "cockroach",  "supercategory": "pest"},
+    ]
+
+    coco_images = []
+    coco_annotations = []
+    ann_id = 1
+
+    # 4. Render each frame and collect COCO annotations
     for frame in range(1, num_frames + 1):
         scene.frame_set(frame)
 
@@ -96,8 +107,29 @@ def main():
         scene.render.filepath = frame_path
         bpy.ops.render.render(write_still=True)
 
-        # Generate label
-        generate_frame_label(pests, scene, camera, frame, labels_dir)
+        # COCO image entry
+        file_name = f"frame_{frame:04d}.png"
+        coco_images.append({
+            "id": frame,
+            "file_name": file_name,
+            "width": width,
+            "height": height,
+        })
+
+        # COCO annotations for this frame
+        frame_anns = collect_frame_annotations(pests, scene, camera, frame, CATEGORY_MAP)
+        for ann in frame_anns:
+            ann["id"] = ann_id
+            ann_id += 1
+        coco_annotations.extend(frame_anns)
+
+    # 5. Write single COCO annotations.json
+    save_coco_dataset(
+        coco_images,
+        coco_annotations,
+        CATEGORIES,
+        os.path.join(labels_dir, "annotations.json"),
+    )
 
     print(f"Blender rendering complete: {num_frames} frames for job {job_id}")
 

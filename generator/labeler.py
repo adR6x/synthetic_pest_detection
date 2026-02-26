@@ -1,4 +1,4 @@
-"""Project 3D mesh bounding boxes to 2D and output JSON labels (runs inside Blender)."""
+"""Project 3D mesh bounding boxes to 2D and output COCO-format labels (runs inside Blender)."""
 
 import json
 import os
@@ -47,45 +47,62 @@ def compute_bbox_2d(obj, scene, camera):
     xs = [c[0] for c in corners_2d]
     ys = [c[1] for c in corners_2d]
 
-    bbox = {
+    return {
         "x_min": max(0, int(min(xs))),
         "y_min": max(0, int(min(ys))),
         "x_max": min(res_x, int(max(xs))),
         "y_max": min(res_y, int(max(ys))),
     }
-    return bbox
 
 
-def generate_frame_label(pests, scene, camera, frame_num, output_dir):
-    """Generate a JSON label file for one frame.
+def collect_frame_annotations(pests, scene, camera, frame_num, category_map):
+    """Return COCO annotation dicts for all visible pests in the current frame.
 
     Args:
         pests: List of (pest_type, pest_object) tuples.
         scene: The current Blender scene.
         camera: The active camera.
-        frame_num: Current frame number.
-        output_dir: Directory to write JSON files.
-    """
-    os.makedirs(output_dir, exist_ok=True)
+        frame_num: Current frame number (used as image_id).
+        category_map: Dict mapping pest_type string to COCO category_id int.
 
+    Returns:
+        List of annotation dicts (without 'id' — caller assigns it).
+    """
     annotations = []
     for pest_type, pest_obj in pests:
         bbox = compute_bbox_2d(pest_obj, scene, camera)
         if bbox is None:
             continue
+        x = bbox["x_min"]
+        y = bbox["y_min"]
+        w = bbox["x_max"] - bbox["x_min"]
+        h = bbox["y_max"] - bbox["y_min"]
+        if w <= 0 or h <= 0:
+            continue
         annotations.append({
-            "pest_type": pest_type,
-            "bbox": [bbox["x_min"], bbox["y_min"], bbox["x_max"], bbox["y_max"]],
-            "confidence": 1.0,
+            "image_id": frame_num,
+            "category_id": category_map.get(pest_type, 0),
+            "bbox": [x, y, w, h],  # COCO format: [x, y, width, height]
+            "area": w * h,
+            "iscrowd": 0,
         })
+    return annotations
 
-    label_data = {
-        "frame": frame_num,
-        "width": scene.render.resolution_x,
-        "height": scene.render.resolution_y,
+
+def save_coco_dataset(images, annotations, categories, output_path):
+    """Write a COCO-format annotations.json.
+
+    Args:
+        images: List of COCO image dicts.
+        annotations: List of COCO annotation dicts.
+        categories: List of COCO category dicts.
+        output_path: Full path to write annotations.json.
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    coco = {
+        "images": images,
         "annotations": annotations,
+        "categories": categories,
     }
-
-    label_path = os.path.join(output_dir, f"frame_{frame_num:04d}.json")
-    with open(label_path, "w") as f:
-        json.dump(label_data, f, indent=2)
+    with open(output_path, "w") as f:
+        json.dump(coco, f, indent=2)

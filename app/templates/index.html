@@ -122,7 +122,12 @@
                 "{{ frame }}",
                 {% endfor %}
             ];
+            // COCO-format labels: {filename: [{image_id, category_id, bbox:[x,y,w,h], ...}]}
             const labelsData = {{ labels_json|safe if labels_json else '{}' }};
+            // COCO categories: {"1": "mouse", "2": "rat", "3": "cockroach"}
+            const categoriesData = {{ categories_json|safe if categories_json else '{}' }};
+            const renderWidth = {{ render_width|default(640) }};
+            const renderHeight = {{ render_height|default(480) }};
             const FPS = 10;
 
             const PEST_COLORS = {
@@ -140,30 +145,32 @@
                 canvas.height = video.clientHeight;
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-                const label = labelsData[frameNames[frameIdx]];
-                if (!label || !label.annotations) return;
+                const frameName = frameNames[frameIdx];
+                const anns = frameName ? labelsData[frameName] : null;
+                if (!anns || anns.length === 0) return;
 
-                const scaleX = canvas.width / (label.width || 640);
-                const scaleY = canvas.height / (label.height || 480);
+                const scaleX = canvas.width / renderWidth;
+                const scaleY = canvas.height / renderHeight;
 
-                for (const ann of label.annotations) {
-                    const [x1, y1, x2, y2] = ann.bbox;
-                    const sx = x1 * scaleX, sy = y1 * scaleY;
-                    const sw = (x2 - x1) * scaleX, sh = (y2 - y1) * scaleY;
+                for (const ann of anns) {
+                    // COCO bbox: [x, y, width, height]
+                    const [x, y, w, h] = ann.bbox;
+                    const sx = x * scaleX, sy = y * scaleY;
+                    const sw = w * scaleX, sh = h * scaleY;
 
-                    const color = PEST_COLORS[ann.pest_type] || "#ffffff";
+                    const pestName = categoriesData[String(ann.category_id)] || "unknown";
+                    const color = PEST_COLORS[pestName] || "#ffffff";
 
                     ctx.strokeStyle = color;
                     ctx.lineWidth = 2;
                     ctx.strokeRect(sx, sy, sw, sh);
 
-                    const text = ann.pest_type;
                     ctx.font = "bold 14px sans-serif";
-                    const textW = ctx.measureText(text).width;
+                    const textW = ctx.measureText(pestName).width;
                     ctx.fillStyle = color;
                     ctx.fillRect(sx, sy - 20, textW + 8, 20);
                     ctx.fillStyle = "#000";
-                    ctx.fillText(text, sx + 4, sy - 5);
+                    ctx.fillText(pestName, sx + 4, sy - 5);
                 }
             }
 

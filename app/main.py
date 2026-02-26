@@ -116,14 +116,29 @@ def results(job_id):
         f for f in all_job_files if f.startswith("placement_mask_") and f.endswith(".png")
     )
 
-    # Load per-frame labels
+    # Load COCO annotations.json and reorganise by filename for the frontend
+    coco_data = {}
+    ann_path = os.path.join(labels_dir, "annotations.json")
+    if os.path.exists(ann_path):
+        with open(ann_path) as f:
+            coco_data = json.load(f)
+
+    id_to_filename = {img["id"]: img["file_name"] for img in coco_data.get("images", [])}
     labels_by_frame = {}
-    for frame_name in frames:
-        label_name = frame_name.replace(".png", ".json")
-        label_path = os.path.join(labels_dir, label_name)
-        if os.path.exists(label_path):
-            with open(label_path) as f:
-                labels_by_frame[frame_name] = json.load(f)
+    for ann in coco_data.get("annotations", []):
+        fname = id_to_filename.get(ann["image_id"])
+        if fname:
+            labels_by_frame.setdefault(fname, []).append(ann)
+
+    categories_by_id = {
+        str(cat["id"]): cat["name"] for cat in coco_data.get("categories", [])
+    }
+
+    render_width = 640
+    render_height = 480
+    if coco_data.get("images"):
+        render_width = coco_data["images"][0].get("width", 640)
+        render_height = coco_data["images"][0].get("height", 480)
 
     return render_template(
         "index.html",
@@ -159,6 +174,9 @@ def results(job_id):
         ],
         frames=frames,
         labels_json=json.dumps(labels_by_frame),
+        categories_json=json.dumps(categories_by_id),
+        render_width=render_width,
+        render_height=render_height,
         render_time=_render_times.get(job_id),
     )
 
