@@ -8,6 +8,10 @@
 </head>
 <body>
     <div class="container">
+        <nav class="site-nav">
+            <a href="{{ url_for('index') }}" class="active">Video Generator</a>
+            <a href="{{ url_for('curator') }}">Model Curator</a>
+        </nav>
         <h1>Synthetic Pest Video Generator</h1>
         <p class="subtitle">Upload a kitchen image to generate synthetic pest detection training data.</p>
 

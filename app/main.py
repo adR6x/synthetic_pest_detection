@@ -7,11 +7,33 @@ import tempfile
 import threading
 import time
 
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, jsonify
 
-from generator.config import UPLOAD_DIR, FRAMES_DIR, VIDEOS_DIR, LABELS_DIR, OUTPUT_DIR
+from generator.config import UPLOAD_DIR, FRAMES_DIR, VIDEOS_DIR, LABELS_DIR, OUTPUT_DIR, PROJECT_ROOT
 from generator.depth_estimator import preload_models
 from generator.pipeline import generate_video
+from generator.model_curator.species_info import SPECIES_INFO
+from generator.model_curator.curator import (
+    get_curator_status,
+    run_pipeline_for_taxon,
+    keep_candidate,
+    TRIPOSR_AVAILABLE,
+)
+
+# --- Curator constants ---
+CURATOR_DIR = os.path.join(PROJECT_ROOT, "outputs", "curator")
+MODELS_DIR = os.path.join(PROJECT_ROOT, "generator", "models")
+CONFIG_PATH = os.path.join(PROJECT_ROOT, "generator", "config.py")
+os.makedirs(CURATOR_DIR, exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+
+def _check_triposr() -> bool:
+    try:
+        import tsr  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 # --- Testing mode: use temp directory instead of outputs/ ---
 # Set to False (or remove this block) when you want to save permanently
@@ -200,6 +222,100 @@ def cleanup():
             os.makedirs(d, exist_ok=True)
     flash("All outputs cleared.")
     return redirect(url_for("index"))
+
+
+# ---------------------------------------------------------------------------
+# Curator routes
+# ---------------------------------------------------------------------------
+
+@app.route("/curator")
+def curator():
+    """Render the model curator page."""
+    # Group existing candidates by taxon_key
+    all_candidates = get_curator_status(CURATOR_DIR)
+    candidates_by_taxon: dict[str, list[dict]] = {}
+    for c in all_candidates:
+        candidates_by_taxon.setdefault(c["taxon_key"], []).append(c)
+
+    return render_template(
+        "curator.html",
+        species_info=SPECIES_INFO,
+        candidates_by_taxon=candidates_by_taxon,
+        triposr_available=_check_triposr(),
+    )
+
+
+@app.route("/curator/run", methods=["POST"])
+def curator_run():
+    """Run download + rembg + (optional) TripoSR pipeline.
+
+    Body JSON: {"taxon_key": "7429082"} or {"taxon_key": "all"}
+    Returns JSON with results per taxon.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    taxon_key_param = data.get("taxon_key", "")
+    triposr = _check_triposr()
+
+    if taxon_key_param == "all":
+        keys_to_run = list(SPECIES_INFO.keys())
+    elif taxon_key_param in SPECIES_INFO:
+        keys_to_run = [taxon_key_param]
+    else:
+        return jsonify({"status": "error", "error": f"Unknown taxon_key: {taxon_key_param}"}), 400
+
+    all_results: dict[str, list[dict]] = {}
+    for key in keys_to_run:
+        try:
+            results = run_pipeline_for_taxon(
+                key,
+                CURATOR_DIR,
+                n_images=5,
+                triposr_available=triposr,
+            )
+            all_results[key] = results
+        except Exception as e:
+            all_results[key] = [{"error": str(e)}]
+
+    return jsonify({"status": "ok", "results": all_results})
+
+
+@app.route("/curator/keep", methods=["POST"])
+def curator_keep():
+    """Copy chosen .glb to generator/models/ and patch config.py.
+
+    Body JSON: {"taxon_key": "7429082", "candidate_index": 0}
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    taxon_key = data.get("taxon_key", "")
+    candidate_index = data.get("candidate_index")
+
+    if not taxon_key or candidate_index is None:
+        return jsonify({"status": "error", "error": "taxon_key and candidate_index required"}), 400
+
+    result = keep_candidate(
+        taxon_key=taxon_key,
+        candidate_index=int(candidate_index),
+        curator_dir=CURATOR_DIR,
+        models_dir=MODELS_DIR,
+        config_path=CONFIG_PATH,
+        species_info=SPECIES_INFO,
+    )
+    if result["status"] == "error":
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.route("/curator/outputs/<taxon_key>/<filename>")
+def curator_serve_output(taxon_key, filename):
+    """Serve images and .glb files from outputs/curator/<taxon_key>/."""
+    taxon_dir = os.path.join(CURATOR_DIR, taxon_key)
+    return send_from_directory(taxon_dir, filename)
+
+
+@app.route("/curator/models/<filename>")
+def curator_serve_model(filename):
+    """Serve .glb files from generator/models/."""
+    return send_from_directory(MODELS_DIR, filename)
 
 
 if __name__ == "__main__":

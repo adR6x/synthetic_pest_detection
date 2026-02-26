@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pest Model Curator — Synthetic Pest Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <!-- Three.js via importmap (no bundler required) -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+      }
+    }
+    </script>
+</head>
+<body>
+<div class="container">
+
+    <!-- Nav -->
+    <nav class="site-nav">
+        <a href="{{ url_for('index') }}">Video Generator</a>
+        <a href="{{ url_for('curator') }}" class="active">Model Curator</a>
+    </nav>
+
+    <h1>Pest Model Curator</h1>
+    <p class="subtitle">
+        Download real GBIF images, remove backgrounds, generate 3D models, and promote the
+        best candidate into <code>generator/models/</code> so Blender uses it on the next render.
+    </p>
+
+    {% if not triposr_available %}
+    <div class="flash flash-info">
+        <strong>TripoSR not installed</strong> — 3D model generation is disabled.
+        Install <code>tsr</code> to enable it. Images and background removal still work.
+    </div>
+    {% endif %}
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- One section per species                                             -->
+    <!-- ------------------------------------------------------------------ -->
+    {% for taxon_key, info in species_info.items() %}
+    {% set candidates = candidates_by_taxon.get(taxon_key, []) %}
+
+    <section class="curator-section" data-taxon="{{ taxon_key }}" data-pest="{{ info.pest_type }}">
+        <div class="curator-section-header">
+            <div>
+                <h2>
+                    <em>{{ info.scientific_name }}</em>
+                    <span class="pest-badge pest-badge--{{ info.pest_type }}">{{ info.pest_type }}</span>
+                </h2>
+                <p class="common-names">{{ info.common_names | join(", ") }}</p>
+                <p class="prevalence">{{ info.indoor_prevalence }}</p>
+            </div>
+            <div class="curator-actions">
+                <button class="btn btn-run" data-taxon="{{ taxon_key }}">
+                    Run Pipeline
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="progress-wrap" id="progress-{{ taxon_key }}" style="display:none;">
+            <div class="progress-bar" id="progress-bar-{{ taxon_key }}"></div>
+            <span class="progress-label" id="progress-label-{{ taxon_key }}">Downloading…</span>
+        </div>
+
+        <!-- Candidate grid -->
+        <div class="candidate-grid" id="grid-{{ taxon_key }}">
+            {% if candidates %}
+                {% for cand in candidates %}
+                <div class="candidate-card" id="card-{{ taxon_key }}-{{ cand.candidate_index }}"
+                     data-taxon="{{ taxon_key }}" data-index="{{ cand.candidate_index }}">
+
+                    <div class="card-images">
+                        {% if cand.has_original %}
+                        <div class="card-image-wrap">
+                            <p class="card-image-label">Original</p>
+                            <img src="{{ url_for('curator_serve_output', taxon_key=taxon_key, filename=cand.original_url) }}"
+                                 alt="original {{ loop.index0 }}" class="card-img">
+                        </div>
+                        {% else %}
+                        <div class="card-image-wrap card-placeholder">
+                            <p class="card-image-label">Original</p>
+                            <p class="placeholder-text">not downloaded</p>
+                        </div>
+                        {% endif %}
+
+                        {% if cand.has_nobg %}
+                        <div class="card-image-wrap checkered">
+                            <p class="card-image-label">No Background</p>
+                            <img src="{{ url_for('curator_serve_output', taxon_key=taxon_key, filename=cand.nobg_url) }}"
+                                 alt="nobg {{ loop.index0 }}" class="card-img">
+                        </div>
+                        {% else %}
+                        <div class="card-image-wrap card-placeholder">
+                            <p class="card-image-label">No Background</p>
+                            <p class="placeholder-text">pending</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- 3D viewer -->
+                    <div class="card-viewer-wrap">
+                        <p class="card-image-label">3D Model</p>
+                        {% if cand.has_model %}
+                        <canvas class="model-viewer"
+                                data-glb="{{ url_for('curator_serve_output', taxon_key=taxon_key, filename=cand.model_url) }}"
+                                width="200" height="160"></canvas>
+                        {% else %}
+                        <div class="model-placeholder">
+                            {% if triposr_available %}
+                            <span>Run pipeline to generate</span>
+                            {% else %}
+                                <span>Install TripoSR to enable 3D generation</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Card actions -->
+                    <div class="card-actions">
+                        {% if cand.has_model %}
+                        <button class="btn btn-keep btn-sm"
+                                data-taxon="{{ taxon_key }}"
+                                data-index="{{ cand.candidate_index }}">Keep</button>
+                        {% else %}
+                        <button class="btn btn-keep btn-sm" disabled title="Generate 3D model first">Keep</button>
+                        {% endif %}
+                        <button class="btn btn-discard btn-sm"
+                                data-taxon="{{ taxon_key }}"
+                                data-index="{{ cand.candidate_index }}">Discard</button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="no-candidates">No candidates yet — click <strong>Run Pipeline</strong>.</p>
+            {% endif %}
+        </div>
+    </section>
+    {% endfor %}
+
+</div><!-- /.container -->
+
+<!-- ------------------------------------------------------------------ -->
+<!-- Three.js GLB viewer (module)                                        -->
+<!-- ------------------------------------------------------------------ -->
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function initViewer(canvas) {
+    const glbUrl = canvas.dataset.glb;
+    if (!glbUrl) return;
+
+    const w = canvas.clientWidth  || 200;
+    const h = canvas.clientHeight || 160;
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(w, h);
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(45, w / h, 0.001, 1000);
+    camera.position.set(0, 0.5, 2);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 3;
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+    dir.position.set(1, 2, 3);
+    scene.add(dir);
+
+    const loader = new GLTFLoader();
+    loader.load(glbUrl, (gltf) => {
+        const obj = gltf.scene;
+        // Auto-center + scale
+        const box = new THREE.Box3().setFromObject(obj);
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z) || 1;
+        obj.scale.multiplyScalar(1.5 / maxDim);
+        const center = box.getCenter(new THREE.Vector3());
+        obj.position.sub(center.multiplyScalar(1.5 / maxDim));
+        scene.add(obj);
+    }, undefined, (err) => {
+        console.error('GLTFLoader error:', err);
+    });
+
+    (function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    })();
+}
+
+document.querySelectorAll('canvas.model-viewer').forEach(initViewer);
+</script>
+
+<!-- ------------------------------------------------------------------ -->
+<!-- UI interaction (vanilla JS)                                         -->
+<!-- ------------------------------------------------------------------ -->
+<script>
+// ---- Run Pipeline ----
+document.querySelectorAll('.btn-run').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const taxon = btn.dataset.taxon;
+        btn.disabled = true;
+        btn.textContent = 'Running…';
+
+        const progressWrap = document.getElementById('progress-' + taxon);
+        const progressBar  = document.getElementById('progress-bar-' + taxon);
+        const progressLabel = document.getElementById('progress-label-' + taxon);
+        progressWrap.style.display = 'block';
+        progressBar.style.width = '20%';
+        progressLabel.textContent = 'Downloading images…';
+
+        try {
+            const resp = await fetch('/curator/run', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({taxon_key: taxon}),
+            });
+            progressBar.style.width = '90%';
+            progressLabel.textContent = 'Finishing…';
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                progressBar.style.width = '100%';
+                progressLabel.textContent = 'Done! Reloading…';
+                window.location.reload();
+            } else {
+                progressLabel.textContent = 'Error: ' + (data.error || 'unknown');
+                btn.disabled = false;
+                btn.textContent = 'Run Pipeline';
+            }
+        } catch (err) {
+            progressLabel.textContent = 'Network error: ' + err.message;
+            btn.disabled = false;
+            btn.textContent = 'Run Pipeline';
+        }
+    });
+});
+
+// ---- Keep ----
+document.querySelectorAll('.btn-keep').forEach(btn => {
+    if (btn.disabled) return;
+    btn.addEventListener('click', async () => {
+        const taxon = btn.dataset.taxon;
+        const index = btn.dataset.index;
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+
+        try {
+            const resp = await fetch('/curator/keep', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({taxon_key: taxon, candidate_index: parseInt(index)}),
+            });
+            const data = await resp.json();
+            if (data.status === 'ok') {
+                btn.textContent = 'Kept!';
+                btn.classList.add('btn-kept');
+                // Dim other cards for the same pest_type
+                const pestType = data.pest_type;
+                document.querySelectorAll('.curator-section').forEach(section => {
+                    if (section.dataset.pest === pestType) {
+                        section.querySelectorAll('.candidate-card').forEach(card => {
+                            const cardIndex = card.dataset.index;
+                            const cardTaxon  = card.dataset.taxon;
+                            if (!(cardTaxon === taxon && cardIndex === index)) {
+                                card.classList.add('card-dimmed');
+                            }
+                        });
+                    }
+                });
+            } else {
+                btn.textContent = 'Error';
+                btn.disabled = false;
+                alert('Keep failed: ' + (data.error || 'unknown'));
+            }
+        } catch (err) {
+            btn.textContent = 'Error';
+            btn.disabled = false;
+            alert('Network error: ' + err.message);
+        }
+    });
+});
+
+// ---- Discard (visual only) ----
+document.querySelectorAll('.btn-discard').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const taxon = btn.dataset.taxon;
+        const index = btn.dataset.index;
+        const card = document.getElementById('card-' + taxon + '-' + index);
+        if (card) {
+            card.classList.add('card-discarded');
+        }
+    });
+});
+</script>
+
+</body>
+</html>
