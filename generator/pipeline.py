@@ -190,7 +190,7 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
     import time as _time
     print(f"Running Blender for job {job_id}...")
     _t0 = _time.monotonic()
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    result = subprocess.run(cmd, capture_output=True, text=True)
     print(f"Blender finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
 
     if result.returncode != 0:
