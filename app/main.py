@@ -48,6 +48,7 @@ if TESTING_MODE:
     FRAMES_DIR = os.path.join(_TEMP_DIR, "frames")
     VIDEOS_DIR = os.path.join(_TEMP_DIR, "videos")
     LABELS_DIR = os.path.join(_TEMP_DIR, "labels")
+    CURATOR_DIR = os.path.join(_TEMP_DIR, "curator")
     print(f"TESTING MODE: outputs go to {_TEMP_DIR} (auto-deleted on exit)")
 # ---------------------------------------------------------
 
