@@ -1,46 +1,7 @@
 """Generator configuration — pure Python, no bpy dependency."""
 
 import os
-import shutil
-import sys
 
-
-def _find_blender():
-    """Locate the Blender executable.
-
-    Resolution order:
-    1. BLENDER_PATH environment variable
-    2. 'blender' on the system PATH
-    3. Common Windows installation directories (Windows only)
-    Falls back to 'blender' so the error message from subprocess is clear.
-    """
-    env_path = os.environ.get("BLENDER_PATH")
-    if env_path:
-        return env_path
-
-    which = shutil.which("blender")
-    if which:
-        return which
-
-    if sys.platform == "win32":
-        program_files = [
-            os.environ.get("PROGRAMFILES", r"C:\Program Files"),
-            os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"),
-        ]
-        for pf in program_files:
-            blender_root = os.path.join(pf, "Blender Foundation")
-            if os.path.isdir(blender_root):
-                # Pick the highest-versioned folder
-                versions = sorted(os.listdir(blender_root), reverse=True)
-                for version_dir in versions:
-                    candidate = os.path.join(blender_root, version_dir, "blender.exe")
-                    if os.path.isfile(candidate):
-                        return candidate
-
-    return "blender"  # fallback — subprocess will raise a clear FileNotFoundError
-
-
-BLENDER_PATH = _find_blender()
 
 # Render settings
 RENDER_WIDTH = 640
@@ -56,6 +17,10 @@ FRAMES_DIR = os.path.join(OUTPUT_DIR, "frames")
 VIDEOS_DIR = os.path.join(OUTPUT_DIR, "videos")
 LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
 
+# Sprite directories — place RGBA PNG files here to override procedural fallback.
+# Resolution order: sprites/{pest_type}/*.png → procedural PIL ellipse.
+SPRITES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sprites")
+
 # Pest parameters
 PEST_TYPES = ["mouse", "rat", "cockroach"]
 
@@ -65,7 +30,7 @@ PEST_PARAMS = {
         "head_scale": (0.04, 0.035, 0.035),
         "head_offset": (0.13, 0.0, 0.01),
         "color": (0.45, 0.35, 0.25, 1.0),
-        "speed": 0.08,
+        "speed": 0.04,
         "min_nz": 0.5,
     },
     "rat": {
@@ -73,7 +38,7 @@ PEST_PARAMS = {
         "head_scale": (0.06, 0.05, 0.05),
         "head_offset": (0.19, 0.0, 0.015),
         "color": (0.35, 0.25, 0.18, 1.0),
-        "speed": 0.06,
+        "speed": 0.03,
         "min_nz": 0.8,
     },
     "cockroach": {
@@ -81,7 +46,7 @@ PEST_PARAMS = {
         "head_scale": None,  # no separate head
         "head_offset": None,
         "color": (0.25, 0.12, 0.05, 1.0),
-        "speed": 0.12,
+        "speed": 0.06,
         "min_nz": 0.1,
     },
 }
@@ -94,19 +59,9 @@ PEST_REAL_SIZES_M = {
     "cockroach": 0.04,   # ~4 cm body
 }
 
-# Paths to imported 3D model files (.glb), one list per pest type.
-# Each entry is a path relative to the project root.
-# Empty list = use built-in procedural geometry (UV-sphere ellipsoids).
-PEST_MODEL_PATHS = {
-    "mouse": [],
-    "rat": [],
-    "cockroach": [],
-}
-
-# The model's local axis that points toward the head (forward direction).
+# The sprite's local axis that points toward the head (forward direction).
 # Used to orient the pest along its movement vector each frame.
-# Procedural models have the head offset in +X, so forward_axis = "X".
-# For downloaded models, check which axis faces forward in Blender and set here.
+# Procedural sprites have the head drawn on the right (+X), so forward_axis = "X".
 # Valid values: "X", "-X", "Y", "-Y"
 PEST_FORWARD_AXIS = {
     "mouse": "X",

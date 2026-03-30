@@ -1,25 +1,23 @@
 """Pipeline orchestrator — runs in system Python (no bpy).
 
-Calls Blender as a subprocess and assembles rendered frames into an MP4.
+Performs depth/normal analysis and assembles rendered frames into an MP4.
 """
 
-import json
 import os
 import random
 import shutil
 import subprocess
+import time as _time
 import uuid
 
 import cv2
 from generator.config import (
-    BLENDER_PATH,
     FRAMES_DIR,
     LABELS_DIR,
     MAX_PESTS,
     MIN_PESTS,
     NUM_FRAMES,
     PEST_FORWARD_AXIS,
-    PEST_MODEL_PATHS,
     PEST_PARAMS,
     PEST_REAL_SIZES_M,
     PEST_TYPES,
@@ -27,10 +25,13 @@ from generator.config import (
     PLANE_WIDTH,
     RENDER_HEIGHT,
     RENDER_WIDTH,
+    SPRITES_DIR,
     VIDEOS_DIR,
     FPS,
 )
 from concurrent.futures import ThreadPoolExecutor
+
+from generator.compositing import composite_frames
 
 from generator.depth_estimator import (
     build_surface_probability_map,
@@ -157,45 +158,24 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
             blender_scale = default_body_x  # fallback if depth is unreliable
 
         pest_cfg["params"]["blender_scale"] = blender_scale
-        pest_cfg["params"]["model_path"] = PEST_MODEL_PATHS.get(pest_type)
         pest_cfg["params"]["forward_axis"] = PEST_FORWARD_AXIS.get(pest_type, "X")
 
-    # Build config for Blender
-    config = {
-        "image_path": os.path.abspath(image_path),
-        "job_id": job_id,
-        "frames_dir": os.path.abspath(frames_dir),
-        "labels_dir": os.path.abspath(labels_dir),
-        "width": RENDER_WIDTH,
-        "height": RENDER_HEIGHT,
-        "num_frames": NUM_FRAMES,
-        "plane_width": PLANE_WIDTH,
-        "plane_height": PLANE_HEIGHT,
-        "pests": pest_configs,
-    }
-    config_json = json.dumps(config)
-
-    # Call Blender as subprocess
-    blender_script = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "blender_script.py"
-    )
-
-    cmd = [
-        BLENDER_PATH,
-        "--background",
-        "--python", blender_script,
-        "--", config_json,
-    ]
-
-    import time as _time
-    print(f"Running Blender for job {job_id}...")
+    # Composite pest sprites onto background image
+    print(f"Running 2D compositing for job {job_id}...")
     _t0 = _time.monotonic()
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    print(f"Blender finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
-
-    if result.returncode != 0:
-        print(f"Blender stderr: {result.stderr}")
-        raise RuntimeError(f"Blender failed with return code {result.returncode}")
+    composite_frames(
+        image_path=os.path.abspath(image_path),
+        pest_configs=pest_configs,
+        frames_dir=frames_dir,
+        labels_dir=labels_dir,
+        num_frames=NUM_FRAMES,
+        sprites_dir=SPRITES_DIR,
+        render_width=RENDER_WIDTH,
+        render_height=RENDER_HEIGHT,
+        plane_width=PLANE_WIDTH,
+        plane_height=PLANE_HEIGHT,
+    )
+    print(f"Compositing finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
 
     # Assemble frames into MP4
     _assemble_video(frames_dir, video_path)

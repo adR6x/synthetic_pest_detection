@@ -1,15 +1,15 @@
-"""Keyframed random-walk animation for pests (runs inside Blender)."""
+"""Random-walk trajectory computation for pests — pure Python, no bpy."""
 
 import math
 import random
 
-import bpy
+import numpy as np
+from PIL import Image
 
 _MASK_CACHE = {}
 
 
-def animate_pest(
-    pest_obj,
+def compute_walk(
     num_frames,
     plane_width,
     plane_height,
@@ -18,26 +18,23 @@ def animate_pest(
     placement_mask_path=None,
     forward_axis="X",
 ):
-    """Animate a pest with a random-walk scurrying motion.
+    """Compute a random-walk trajectory for one pest.
 
-    The pest is rotated each frame to face the direction it is moving.
-    The forward_axis parameter maps the model's head direction to the
-    world heading angle so that any imported or procedural model faces
-    the right way regardless of its local-space orientation.
+    Replaces animate_pest() — no bpy required.
 
     Args:
-        pest_obj: The pest body mesh object.
-        num_frames: Total number of frames.
-        plane_width: Width of the kitchen plane (world units).
-        plane_height: Height of the kitchen plane (world units).
-        speed: Step size per frame in world units.
-        start_position: Optional [x, y] starting coordinates in world units.
-        placement_mask_path: Optional path to a boolean .npy placement mask.
-        forward_axis: Local axis that points toward the model's head.
-                      One of "X", "-X", "Y", "-Y".  Default "X".
+        num_frames:           Total number of frames to generate.
+        plane_width:          Width of the plane in world units.
+        plane_height:         Height of the plane in world units.
+        speed:                Maximum step size per frame in world units.
+        start_position:       Optional [wx, wy] in world units.
+        placement_mask_path:  Optional path to the grayscale placement mask PNG.
+        forward_axis:         Local axis facing the head: "X", "-X", "Y", "-Y".
+
+    Returns:
+        List of (wx, wy, angle_rad) tuples, one per frame (length == num_frames).
+        angle_rad is the world heading (0 = facing +X, pi/2 = facing +Y).
     """
-    # Random starting position within the plane bounds.
-    # The plane goes from -plane_width/2 to +plane_width/2, so use half-dimensions.
     margin = 0.15
     x_range = plane_width / 2.0 - margin
     y_range = plane_height / 2.0 - margin
@@ -56,24 +53,16 @@ def animate_pest(
     ) <= 1e-3:
         x, y = _sample_valid_world_position(placement_mask, plane_width, plane_height, margin)
 
-    z = pest_obj.location.z  # keep height constant
-
-    # Pre-compute the axis offset so model's local forward maps to world +X=0 rad.
-    # atan2(dy, dx) gives world heading where 0 = +X, pi/2 = +Y.
-    # We subtract the axis's own angle so the model head points along movement.
     _AXIS_OFFSET = {"X": 0.0, "-X": math.pi, "Y": -math.pi / 2, "-Y": math.pi / 2}
     axis_offset = _AXIS_OFFSET.get(forward_axis, 0.0)
 
-    # Frame 1: place at starting position facing +X (arbitrary, no movement yet).
-    pest_obj.location = (x, y, z)
-    pest_obj.rotation_euler.z = axis_offset
-    pest_obj.keyframe_insert(data_path="location", frame=1)
-    pest_obj.keyframe_insert(data_path="rotation_euler", frame=1)
-
+    frames = []
     prev_x, prev_y = x, y
 
-    for frame in range(2, num_frames + 1):
-        # Random walk step, with rejection if it leaves valid placement regions.
+    # Frame 1: starting position, facing forward axis direction
+    frames.append((x, y, axis_offset))
+
+    for _ in range(num_frames - 1):
         moved = False
         for _ in range(12):
             dx = random.uniform(-speed, speed)
@@ -87,39 +76,33 @@ def animate_pest(
                 moved = True
                 break
 
-        if not moved and placement_mask is not None:
-            # Stay in place if no valid move was found.
-            pass
-
-        pest_obj.location = (x, y, z)
-        pest_obj.keyframe_insert(data_path="location", frame=frame)
-
-        # Rotate to face direction of travel.  A small wobble is added so the
-        # movement looks organic rather than perfectly mechanical.
         dx_move = x - prev_x
         dy_move = y - prev_y
         if abs(dx_move) > 1e-6 or abs(dy_move) > 1e-6:
             heading = math.atan2(dy_move, dx_move) - axis_offset
-            pest_obj.rotation_euler.z = heading + random.uniform(-0.08, 0.08)
-        pest_obj.keyframe_insert(data_path="rotation_euler", frame=frame)
+            angle = heading + random.uniform(-0.08, 0.08)
+        else:
+            angle = frames[-1][2]  # no movement — keep prior heading
 
+        frames.append((x, y, angle))
         prev_x, prev_y = x, y
+
+    return frames
 
 
 def _clamp(value, min_val, max_val):
-    """Clamp a value between min and max."""
     return max(min_val, min(max_val, value))
 
 
 def _load_mask(mask_path):
-    """Load and cache a placement mask image into a Python-friendly structure."""
+    """Load and cache a placement mask image."""
     if not mask_path:
         return None
     if mask_path not in _MASK_CACHE:
         if mask_path.lower().endswith(".png"):
             _MASK_CACHE[mask_path] = _load_mask_from_image(mask_path)
         else:
-            print(f"WARNING: Unsupported placement mask format in Blender: {mask_path}")
+            print(f"WARNING: Unsupported placement mask format: {mask_path}")
             _MASK_CACHE[mask_path] = None
     return _MASK_CACHE[mask_path]
 
@@ -141,7 +124,7 @@ def _accept_probabilistic_move(x, y, mask, plane_width, plane_height):
 
 
 def _world_to_mask_indices(x, y, mask, plane_width, plane_height):
-    """Map world-plane coordinates back to mask pixel indices."""
+    """Map world-plane coordinates to mask pixel indices."""
     h = mask["height"]
     w = mask["width"]
     u = (x / plane_width) + 0.5
@@ -154,14 +137,13 @@ def _world_to_mask_indices(x, y, mask, plane_width, plane_height):
 
 
 def _sample_valid_world_position(mask, plane_width, plane_height, margin):
-    """Fallback sampler inside Blender if the provided start position is invalid."""
+    """Sample a valid world position from the placement mask CDF."""
     coords = mask["coords"]
     cdf = mask["cdf"]
     if not coords:
         return 0.0, 0.0
 
     r = random.random()
-    idx = 0
     lo = 0
     hi = len(cdf) - 1
     while lo < hi:
@@ -170,8 +152,7 @@ def _sample_valid_world_position(mask, plane_width, plane_height, margin):
             lo = mid + 1
         else:
             hi = mid
-    idx = lo
-    py, px = coords[idx]
+    py, px = coords[lo]
     h = mask["height"]
     w = mask["width"]
 
@@ -186,19 +167,17 @@ def _sample_valid_world_position(mask, plane_width, plane_height, margin):
 
 
 def _load_mask_from_image(mask_path):
-    """Load a grayscale/rgba placement probability map via Blender."""
-    img = bpy.data.images.load(mask_path, check_existing=True)
-    width, height = img.size[:2]
-    pixels = list(img.pixels[:])  # flat RGBA floats in [0,1]
+    """Load a grayscale placement probability map via Pillow."""
+    img = Image.open(mask_path).convert("L")  # 8-bit grayscale
+    width, height = img.size
+    raw = np.array(img, dtype=np.float32) / 255.0  # shape (H, W), values 0..1
 
     values = []
     coords = []
     weights = []
     for py in range(height):
-        row_offset = py * width
         for px in range(width):
-            idx = (row_offset + px) * 4
-            p = float(_clamp(pixels[idx], 0.0, 1.0))  # grayscale saved in red channel
+            p = float(raw[py, px])
             values.append(p)
             if p > 1e-3:
                 coords.append((py, px))
