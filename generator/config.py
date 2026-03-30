@@ -97,7 +97,6 @@ PEST_REAL_SIZES_M = {
 # Paths to imported 3D model files (.glb), one list per pest type.
 # Each entry is a path relative to the project root.
 # Empty list = use built-in procedural geometry (UV-sphere ellipsoids).
-# Populated automatically by the Model Curator when you click "Keep".
 PEST_MODEL_PATHS = {
     "mouse": [],
     "rat": [],
