@@ -4,8 +4,10 @@ import json
 import os
 import shutil
 import tempfile
+import queue
 import threading
 import time
+import traceback
 
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, flash, jsonify
 
@@ -18,7 +20,6 @@ from generator.model_curator.curator import (
     run_pipeline_for_taxon,
     keep_candidate,
     discard_candidate,
-    TRIPOSR_AVAILABLE,
 )
 
 # --- Curator constants ---
@@ -30,13 +31,6 @@ DISCARDS_PATH = os.path.join(PROJECT_ROOT, "generator", "model_curator", "discar
 os.makedirs(CURATOR_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
 
-
-def _check_triposr() -> bool:
-    try:
-        import tsr  # noqa: F401
-        return True
-    except ImportError:
-        return False
 
 # --- Testing mode: use temp directory instead of outputs/ ---
 # Set to False (or remove this block) when you want to save permanently
@@ -232,65 +226,173 @@ def cleanup():
 # Curator routes
 # ---------------------------------------------------------------------------
 
+_PEST_ICONS = {"mouse": "🐭", "rat": "🐀", "cockroach": "🪳"}
+_PEST_TYPES = ["mouse", "rat", "cockroach"]
+
+# --- Background pipeline queue (serialises pipeline runs) ---
+# _pipeline_busy: True while a job is in-flight for that pest type.
+# _pipeline_n_new: n_new requests that arrived while the job was running;
+#   the worker re-queues them automatically when the current job finishes.
+_pipeline_busy: dict[str, bool] = {p: False for p in _PEST_TYPES}
+_pipeline_n_new: dict[str, int] = {p: 0 for p in _PEST_TYPES}
+_pipeline_lock = threading.Lock()
+_bg_queue: queue.Queue = queue.Queue()
+
+
+def _bg_pipeline_worker() -> None:
+    while True:
+        pest_type, n_new = _bg_queue.get()
+        try:
+            keys = [k for k, v in SPECIES_INFO.items() if v["pest_type"] == pest_type]
+
+            # Count existing candidates per taxon key
+            existing_per_key: dict[str, int] = {k: 0 for k in keys}
+            for cand in get_curator_status(CURATOR_DIR):
+                if cand["taxon_key"] in existing_per_key:
+                    existing_per_key[cand["taxon_key"]] += 1
+
+            # Distribute n_new across keys: always give the next image to the
+            # key that currently has the fewest candidates.
+            targets = dict(existing_per_key)
+            for _ in range(n_new):
+                k = min(keys, key=lambda k: targets[k])
+                targets[k] += 1
+
+            for key in keys:
+                if targets[key] > existing_per_key[key]:
+                    try:
+                        run_pipeline_for_taxon(
+                            key, CURATOR_DIR,
+                            n_images=targets[key],
+                            pest_type=SPECIES_INFO[key]["pest_type"],
+                            discards_path=DISCARDS_PATH,
+                        )
+                    except Exception:
+                        traceback.print_exc()
+        finally:
+            with _pipeline_lock:
+                # If more work arrived while we were running, re-queue it now.
+                leftover = _pipeline_n_new[pest_type]
+                if leftover > 0:
+                    _pipeline_n_new[pest_type] = 0
+                    _bg_queue.put((pest_type, leftover))
+                    # _pipeline_busy stays True — another job is queued
+                else:
+                    _pipeline_busy[pest_type] = False
+            _bg_queue.task_done()
+
+
+threading.Thread(target=_bg_pipeline_worker, daemon=True, name="bg-pipeline").start()
+
+
+def _pest_card_summary() -> list[dict]:
+    """Return summary dicts for the three pest-type cards."""
+    all_candidates = get_curator_status(CURATOR_DIR)
+    candidate_counts: dict[str, int] = {}
+    for c in all_candidates:
+        pest = SPECIES_INFO.get(c["taxon_key"], {}).get("pest_type", "")
+        candidate_counts[pest] = candidate_counts.get(pest, 0) + 1
+
+    cards = []
+    for pest_type in _PEST_TYPES:
+        pest_dir = os.path.join(MODELS_DIR, pest_type)
+        kept = len([f for f in os.listdir(pest_dir) if f.endswith(".glb")]) if os.path.isdir(pest_dir) else 0
+        cards.append({
+            "pest_type": pest_type,
+            "icon": _PEST_ICONS[pest_type],
+            "kept_count": kept,
+            "candidate_count": candidate_counts.get(pest_type, 0),
+        })
+    return cards
+
+
 @app.route("/curator")
 def curator():
-    """Render the model curator page."""
-    # Group existing candidates by taxon_key
-    all_candidates = get_curator_status(CURATOR_DIR)
-    candidates_by_taxon: dict[str, list[dict]] = {}
-    for c in all_candidates:
-        candidates_by_taxon.setdefault(c["taxon_key"], []).append(c)
-
-    # Scan generator/models/<pest_type>/ for already-kept .glb files
-    kept_models: dict[str, list[str]] = {}
-    for pest_type in ["mouse", "rat", "cockroach"]:
-        pest_dir = os.path.join(MODELS_DIR, pest_type)
-        if os.path.isdir(pest_dir):
-            kept_models[pest_type] = sorted(
-                f for f in os.listdir(pest_dir) if f.endswith(".glb")
-            )
-        else:
-            kept_models[pest_type] = []
-
+    """Render the model curator page (3 pest-type cards)."""
     return render_template(
         "curator.html",
-        species_info=SPECIES_INFO,
-        candidates_by_taxon=candidates_by_taxon,
-        kept_models=kept_models,
-        triposr_available=_check_triposr(),
+        pest_cards=_pest_card_summary(),
     )
+
+
+@app.route("/curator/api/candidates/<pest_type>")
+def curator_api_candidates(pest_type):
+    """Return all ready candidates for a pest type as JSON, with species metadata."""
+    if pest_type not in _PEST_TYPES:
+        return jsonify({"status": "error", "error": f"Unknown pest_type: {pest_type}"}), 400
+
+    all_candidates = get_curator_status(CURATOR_DIR)
+    result = []
+    for c in all_candidates:
+        info = SPECIES_INFO.get(c["taxon_key"], {})
+        if info.get("pest_type") != pest_type:
+            continue
+        result.append({
+            **c,
+            "original_url": "/curator/outputs/{}/{}".format(c["taxon_key"], c["original_url"]),
+            "nobg_url":     "/curator/outputs/{}/{}".format(c["taxon_key"], c["nobg_url"]),
+            "model_url":    "/curator/outputs/{}/{}".format(c["taxon_key"], c["model_url"]),
+            "scientific_name":   info.get("scientific_name", ""),
+            "common_names":      info.get("common_names", []),
+            "indoor_prevalence": info.get("indoor_prevalence", ""),
+            "gbif_url":          info.get("gbif_url", ""),
+        })
+
+    # Kept models for this pest type
+    pest_dir = os.path.join(MODELS_DIR, pest_type)
+    kept = sorted(f for f in os.listdir(pest_dir) if f.endswith(".glb")) if os.path.isdir(pest_dir) else []
+
+    return jsonify({
+        "status": "ok",
+        "pest_type": pest_type,
+        "candidates": result,
+        "kept_count": len(kept),
+        "kept_models": kept,
+    })
 
 
 @app.route("/curator/run", methods=["POST"])
 def curator_run():
-    """Run download + rembg + (optional) TripoSR pipeline.
+    """Run download + rembg + ellipsoid GLB pipeline.
 
-    Body JSON: {"taxon_key": "7429082"} or {"taxon_key": "all"}
+    Body JSON: {"pest_type": "mouse"} | {"taxon_key": "7429082"} | {"taxon_key": "all"}
     Returns JSON with results per taxon.
     """
     data = request.get_json(force=True, silent=True) or {}
-    taxon_key_param = data.get("taxon_key", "")
-    triposr = _check_triposr()
 
-    if taxon_key_param == "all":
+    pest_type_param = data.get("pest_type", "")
+    taxon_key_param = data.get("taxon_key", "")
+
+    if pest_type_param in _PEST_TYPES:
+        keys_to_run = [k for k, v in SPECIES_INFO.items() if v["pest_type"] == pest_type_param]
+    elif taxon_key_param == "all":
         keys_to_run = list(SPECIES_INFO.keys())
     elif taxon_key_param in SPECIES_INFO:
         keys_to_run = [taxon_key_param]
     else:
-        return jsonify({"status": "error", "error": f"Unknown taxon_key: {taxon_key_param}"}), 400
+        return jsonify({"status": "error", "error": "Provide pest_type or taxon_key"}), 400
+
+    # Existing candidate counts per taxon. We increase by +2 each run.
+    existing_counts: dict[str, int] = {}
+    for cand in get_curator_status(CURATOR_DIR):
+        key = cand["taxon_key"]
+        existing_counts[key] = existing_counts.get(key, 0) + 1
 
     all_results: dict[str, list[dict]] = {}
     for key in keys_to_run:
         try:
+            target_total = existing_counts.get(key, 0) + 2
             results = run_pipeline_for_taxon(
                 key,
                 CURATOR_DIR,
-                n_images=5,
-                triposr_available=triposr,
+                n_images=target_total,
+                pest_type=SPECIES_INFO[key]["pest_type"],
                 discards_path=DISCARDS_PATH,
             )
             all_results[key] = results
         except Exception as e:
+            print("curator_run error for taxon", key)
+            traceback.print_exc()
             all_results[key] = [{"error": str(e)}]
 
     return jsonify({"status": "ok", "results": all_results})
@@ -356,6 +458,41 @@ def curator_serve_output(taxon_key, filename):
 def curator_serve_model(filename):
     """Serve .glb files from generator/models/."""
     return send_from_directory(MODELS_DIR, filename)
+
+
+@app.route("/curator/run-async", methods=["POST"])
+def curator_run_async():
+    """Queue a pipeline for a pest type; returns immediately (fire-and-forget).
+
+    Body JSON: {"pest_type": "mouse", "n_new": 5}
+    n_new: how many new images to fetch (default 1).
+    If a job is already running, the n_new is accumulated and processed when
+    the current job finishes (taking the max of pending values).
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    pest_type = data.get("pest_type", "")
+    n_new = max(1, int(data.get("n_new", 1)))
+    if pest_type not in _PEST_TYPES:
+        return jsonify({"status": "error", "error": f"Unknown pest_type: {pest_type}"}), 400
+    with _pipeline_lock:
+        # Always take the max so a larger request wins over a smaller one.
+        _pipeline_n_new[pest_type] = max(_pipeline_n_new[pest_type], n_new)
+        if _pipeline_busy[pest_type]:
+            return jsonify({"status": "already_queued"})
+        # Not busy: consume the pending n_new and start a job.
+        _pipeline_busy[pest_type] = True
+        n = _pipeline_n_new[pest_type]
+        _pipeline_n_new[pest_type] = 0
+        _bg_queue.put((pest_type, n))
+    return jsonify({"status": "queued"})
+
+
+@app.route("/curator/api/pipeline-status")
+def curator_pipeline_status():
+    """Return {pest: bool} showing which pipelines are queued/running."""
+    with _pipeline_lock:
+        running = dict(_pipeline_busy)
+    return jsonify({"status": "ok", "running": running})
 
 
 if __name__ == "__main__":

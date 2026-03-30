@@ -70,28 +70,6 @@ SITE=$(poetry run python -c "import site; print(site.getsitepackages()[0])")
 cp -r "$STUB_SRC" "$SITE/"
 info "mmcv stub installed to $SITE/mmcv"
 
-# ─── TripoSR stub ─────────────────────────────────────────────────────────────
-# TripoSR has no setup.py/pyproject.toml so it cannot be pip-installed.
-# We clone it and copy the tsr/ package into the virtualenv, same approach
-# as mmcv above. torchmcubes (marching-cubes kernel) is installed via pip.
-info "Installing TripoSR (clone + copy tsr/ package into venv)..."
-TRIPOSR_CLONE_DIR="$(dirname "$0")/.triposr_clone"
-if [ -d "$TRIPOSR_CLONE_DIR" ]; then
-    info "TripoSR already cloned — pulling latest..."
-    git -C "$TRIPOSR_CLONE_DIR" pull --ff-only
-else
-    git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git "$TRIPOSR_CLONE_DIR"
-fi
-cp -r "$TRIPOSR_CLONE_DIR/tsr" "$SITE/"
-info "tsr package installed to $SITE/tsr"
-
-info "Installing torchmcubes (TripoSR mesh extraction kernel)..."
-if poetry run pip install --quiet git+https://github.com/tatsy/torchmcubes.git 2>&1; then
-    info "torchmcubes installed"
-else
-    warn "torchmcubes build failed (requires CUDA + GPU) — TripoSR 3D generation will not work on this machine. Install CUDA and re-run to enable it."
-fi
-
 # ─── ffmpeg (via imageio-ffmpeg — no sudo required) ──────────────────────────
 # imageio-ffmpeg ships a static ffmpeg binary inside the venv.
 # System ffmpeg is used if present; imageio-ffmpeg acts as a no-sudo fallback.

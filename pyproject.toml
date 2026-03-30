@@ -21,7 +21,6 @@ imageio-ffmpeg = ">=0.4"
 requests = ">=2.28"
 rembg = {extras = ["cpu"], version = ">=0.1"}
 trimesh = ">=3.0"
-omegaconf = ">=2.3"
 huggingface-hub = ">=0.19"
 
 [build-system]

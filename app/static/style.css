@@ -429,3 +429,241 @@ video {
 .kept-models-list li {
     margin: 0.1rem 0;
 }
+
+/* New curator flow: pest cards + single-candidate review */
+.pest-card-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.pest-card {
+    border: 1px solid #dee2e6;
+    border-radius: 10px;
+    padding: 1rem;
+    background: #fcfcfd;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.pest-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-color: #b9c5d0;
+}
+
+.pest-card-icon {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.pest-card-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #1f2a37;
+}
+
+.pest-card-stats {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.stat-kept,
+.stat-ready {
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.stat-kept {
+    background: #e8f5e9;
+    color: #166534;
+}
+
+.stat-ready {
+    background: #e7f0ff;
+    color: #1d4ed8;
+}
+
+.pest-run-btn {
+    align-self: flex-start;
+    margin-top: 0.25rem;
+}
+
+.pest-run-progress {
+    margin-top: 0.35rem;
+}
+
+.review-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.review-progress {
+    margin-left: auto;
+    margin-right: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.btn-back {
+    background: #64748b;
+}
+
+.btn-back:hover:not(:disabled) {
+    background: #475569;
+}
+
+.review-species {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #f8fafc;
+}
+
+.review-species h2 {
+    margin-bottom: 0.25rem;
+}
+
+.gbif-link-wrap {
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+    color: #475569;
+}
+
+.gbif-link-wrap a {
+    color: #1d4ed8;
+    text-decoration: none;
+}
+
+.gbif-link-wrap a:hover {
+    text-decoration: underline;
+}
+
+.review-panels {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+.review-panel {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 0.65rem;
+    background: #fafafa;
+}
+
+.panel-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #475569;
+    margin-bottom: 0.5rem;
+}
+
+.panel-img-wrap,
+.panel-viewer-wrap {
+    border-radius: 6px;
+    overflow: hidden;
+    height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+}
+
+.panel-viewer-wrap {
+    background: #0f172a;
+}
+
+.panel-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+#rv-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.review-actions {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+}
+
+.btn-skip {
+    background: #0ea5e9;
+}
+
+.btn-skip:hover:not(:disabled) {
+    background: #0284c7;
+}
+
+.review-done-banner {
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+    .pest-card-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .review-panels {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .container {
+        margin: 1rem;
+        padding: 1rem;
+    }
+
+    .pest-card-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .review-header {
+        flex-wrap: wrap;
+    }
+
+    .review-progress {
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .review-actions {
+        flex-wrap: wrap;
+    }
+
+    .review-done-banner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

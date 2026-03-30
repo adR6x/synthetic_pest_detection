@@ -4,6 +4,20 @@
 # Outputs
 outputs/
 
+# Local curated/generated 3D assets (never track binaries)
+generator/models/**
+!generator/models/**/
+!generator/models/**/.gitkeep
+
+# Model checkpoints / weights (large binaries)
+model.ckpt
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+
 # Python
 __pycache__/
 *.py[cod]

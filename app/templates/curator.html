@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pest Model Curator — Synthetic Pest Generator</title>
+    <title>Pest Model Curator</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-
-    <!-- Three.js via importmap (no bundler required) -->
     <script type="importmap">
     {
       "imports": {
@@ -19,313 +17,659 @@
 <body>
 <div class="container">
 
-    <!-- Nav -->
     <nav class="site-nav">
         <a href="{{ url_for('index') }}">Video Generator</a>
         <a href="{{ url_for('curator') }}" class="active">Model Curator</a>
     </nav>
 
-    <h1>Pest Model Curator</h1>
-    <p class="subtitle">
-        Download real GBIF images, remove backgrounds, generate 3D models, and promote the
-        best candidate into <code>generator/models/</code> so Blender uses it on the next render.
-    </p>
+    <!-- ================================================================ -->
+    <!-- VIEW 1: Pest type cards                                           -->
+    <!-- ================================================================ -->
+    <div id="view-cards">
+        <h1>Pest Model Curator</h1>
+        <p class="subtitle">Select a pest type to review and keep 3D models.</p>
 
-    {% if not triposr_available %}
-    <div class="flash flash-info">
-        <strong>TripoSR not installed</strong> — 3D model generation is disabled.
-        Install <code>tsr</code> to enable it. Images and background removal still work.
-    </div>
-    {% endif %}
-
-    <!-- ------------------------------------------------------------------ -->
-    <!-- One section per species                                             -->
-    <!-- ------------------------------------------------------------------ -->
-    {% for taxon_key, info in species_info.items() %}
-    {% set candidates = candidates_by_taxon.get(taxon_key, []) %}
-
-    <section class="curator-section" data-taxon="{{ taxon_key }}" data-pest="{{ info.pest_type }}">
-        <div class="curator-section-header">
-            <div>
-                <h2>
-                    <em>{{ info.scientific_name }}</em>
-                    <span class="pest-badge pest-badge--{{ info.pest_type }}">{{ info.pest_type }}</span>
-                </h2>
-                <p class="common-names">{{ info.common_names | join(", ") }}</p>
-                <p class="prevalence">{{ info.indoor_prevalence }}</p>
-            </div>
-            <div class="curator-actions">
-                <button class="btn btn-run" data-taxon="{{ taxon_key }}">
+        <div class="pest-card-grid">
+            {% for card in pest_cards %}
+            <div class="pest-card" data-pest="{{ card.pest_type }}">
+                <div class="pest-card-icon">{{ card.icon }}</div>
+                <div class="pest-card-name">{{ card.pest_type | capitalize }}</div>
+                <div class="pest-card-stats">
+                    <span class="stat-kept">{{ card.kept_count }} kept</span>
+                    <span class="stat-ready">{{ card.candidate_count }} ready</span>
+                </div>
+                <button class="btn btn-run pest-run-btn"
+                        data-pest="{{ card.pest_type }}"
+                        >
                     Run Pipeline
                 </button>
+                <div class="pest-run-progress" id="run-progress-{{ card.pest_type }}" style="display:none;">
+                    <div class="progress-wrap" style="margin:0.5rem 0 0;">
+                        <div class="progress-bar" id="run-bar-{{ card.pest_type }}"></div>
+                        <span class="progress-label" id="run-label-{{ card.pest_type }}">…</span>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ================================================================ -->
+    <!-- VIEW 2: Single-candidate review                                   -->
+    <!-- ================================================================ -->
+    <div id="view-review" style="display:none;">
+
+        <div class="review-header">
+            <button class="btn btn-back" id="btn-back">← All Pests</button>
+            <div class="review-progress" id="review-progress"></div>
+            <button class="btn btn-run" id="btn-run-review">Run Pipeline</button>
+        </div>
+
+        <!-- Species info -->
+        <div class="review-species" id="review-species">
+            <div>
+                <h2 id="rv-scientific"></h2>
+                <p id="rv-common" class="common-names"></p>
+                <p id="rv-prevalence" class="prevalence"></p>
+                <p id="rv-gbif-wrap" class="gbif-link-wrap" style="display:none;">
+                    GBIF:
+                    <a id="rv-gbif" href="#" target="_blank" rel="noopener noreferrer">Open species page</a>
+                </p>
+            </div>
+            <span class="pest-badge" id="rv-badge"></span>
+        </div>
+
+        <!-- Three panels -->
+        <div class="review-panels" id="review-panels">
+            <div class="review-panel">
+                <p class="panel-label">Original</p>
+                <div class="panel-img-wrap" id="panel-original">
+                    <img id="rv-original" src="" alt="original">
+                </div>
+            </div>
+            <div class="review-panel">
+                <p class="panel-label">No Background</p>
+                <div class="panel-img-wrap checkered" id="panel-nobg">
+                    <img id="rv-nobg" src="" alt="no background">
+                </div>
+            </div>
+            <div class="review-panel">
+                <p class="panel-label">3D Model</p>
+                <div class="panel-viewer-wrap" id="panel-viewer">
+                    <canvas id="rv-canvas" width="300" height="240"></canvas>
+                    <div id="rv-no-model" class="model-placeholder" style="display:none;">
+                        Generating 3D model…
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Progress bar -->
-        <div class="progress-wrap" id="progress-{{ taxon_key }}" style="display:none;">
-            <div class="progress-bar" id="progress-bar-{{ taxon_key }}"></div>
-            <span class="progress-label" id="progress-label-{{ taxon_key }}">Downloading…</span>
+        <!-- Actions -->
+        <div class="review-actions" id="review-actions">
+            <button class="btn btn-keep" id="btn-keep">✓ Keep</button>
+            <button class="btn btn-skip" id="btn-skip">Skip →</button>
+            <button class="btn btn-discard" id="btn-discard">✗ Discard</button>
         </div>
 
-        <!-- Already-kept models for this pest type -->
-        {% set kept = kept_models.get(info.pest_type, []) %}
-        {% if kept %}
-        <div class="kept-models-list">
-            <strong>Kept models ({{ kept | length }}):</strong>
-            <ul>
-            {% for fname in kept %}
-                <li><code>generator/models/{{ info.pest_type }}/{{ fname }}</code></li>
-            {% endfor %}
-            </ul>
+        <!-- Kept models for this pest type -->
+        <div id="kept-list-wrap" style="display:none; margin-top:1.5rem;">
+            <div class="kept-models-list">
+                <strong id="kept-list-title"></strong>
+                <ul id="kept-list"></ul>
+            </div>
         </div>
-        {% endif %}
 
-        <!-- Candidate grid -->
-        <div class="candidate-grid" id="grid-{{ taxon_key }}">
-            {% if candidates %}
-                {% for cand in candidates %}
-                <div class="candidate-card" id="card-{{ taxon_key }}-{{ cand.candidate_index }}"
-                     data-taxon="{{ taxon_key }}" data-index="{{ cand.candidate_index }}">
-
-                    <div class="card-images">
-                        {% if cand.has_original %}
-                        <div class="card-image-wrap">
-                            <p class="card-image-label">Original</p>
-                            <img src="{{ url_for('curator_serve_output', taxon_key=taxon_key, filename=cand.original_url) }}"
-                                 alt="original {{ loop.index0 }}" class="card-img">
-                        </div>
-                        {% else %}
-                        <div class="card-image-wrap card-placeholder">
-                            <p class="card-image-label">Original</p>
-                            <p class="placeholder-text">not downloaded</p>
-                        </div>
-                        {% endif %}
-
-                        {% if cand.has_nobg %}
-                        <div class="card-image-wrap checkered">
-                            <p class="card-image-label">No Background</p>
-                            <img src="{{ url_for('curator_serve_output', taxon_key=taxon_key, filename=cand.nobg_url) }}"
-                                 alt="nobg {{ loop.index0 }}" class="card-img">
-                        </div>
-                        {% else %}
-                        <div class="card-image-wrap card-placeholder">
-                            <p class="card-image-label">No Background</p>
-                            <p class="placeholder-text">pending</p>
-                        </div>
-                        {% endif %}
-                    </div>
-
-                    <!-- 3D viewer -->
-                    <div class="card-viewer-wrap">
-                        <p class="card-image-label">3D Model</p>
-                        {% if cand.has_model %}
-                        <canvas class="model-viewer"
-                                data-glb="{{ url_for('curator_serve_output', taxon_key=taxon_key, filename=cand.model_url) }}"
-                                width="200" height="160"></canvas>
-                        {% else %}
-                        <div class="model-placeholder">
-                            {% if triposr_available %}
-                            <span>Run pipeline to generate</span>
-                            {% else %}
-                                <span>Install TripoSR to enable 3D generation</span>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                    </div>
-
-                    <!-- Card actions -->
-                    <div class="card-actions">
-                        {% if cand.has_model %}
-                        <button class="btn btn-keep btn-sm"
-                                data-taxon="{{ taxon_key }}"
-                                data-index="{{ cand.candidate_index }}">Keep</button>
-                        {% else %}
-                        <button class="btn btn-keep btn-sm" disabled title="Generate 3D model first">Keep</button>
-                        {% endif %}
-                        <button class="btn btn-discard btn-sm"
-                                data-taxon="{{ taxon_key }}"
-                                data-index="{{ cand.candidate_index }}">Discard</button>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <p class="no-candidates">No candidates yet — click <strong>Run Pipeline</strong>.</p>
-            {% endif %}
+        <!-- Done banner -->
+        <div id="review-done" style="display:none;" class="review-done-banner">
+            <p id="review-done-text">All candidates reviewed for this pest type.</p>
+            <button class="btn" id="btn-done-back">← Back to All Pests</button>
         </div>
-    </section>
-    {% endfor %}
+    </div>
 
 </div><!-- /.container -->
 
-<!-- ------------------------------------------------------------------ -->
-<!-- Three.js GLB viewer (module)                                        -->
-<!-- ------------------------------------------------------------------ -->
+<!-- ================================================================ -->
+<!-- Three.js viewer                                                   -->
+<!-- ================================================================ -->
 <script type="module">
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-function initViewer(canvas) {
-    const glbUrl = canvas.dataset.glb;
-    if (!glbUrl) return;
+// Keep one renderer alive for the lifetime of the page.
+// Recreating a WebGLRenderer on the same canvas after dispose() is
+// unreliable across browsers — the old GL context may still be attached.
+let _animId   = null;
+let _renderer = null;
+let _camera   = null;
+let _controls = null;
+let _scene    = null;   // swapped out per candidate
 
-    const w = canvas.clientWidth  || 200;
-    const h = canvas.clientHeight || 160;
+function _ensureRenderer() {
+    const canvas = document.getElementById('rv-canvas');
+    if (!canvas || _renderer) return;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(w, h);
+    const container = canvas.parentElement;
+    const w = container.clientWidth  || 300;
+    const h = container.clientHeight || 240;
 
+    _renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    _renderer.setPixelRatio(window.devicePixelRatio);
+    _renderer.setSize(w, h);
+
+    _camera = new THREE.PerspectiveCamera(45, w / h, 0.001, 1000);
+    _camera.position.set(0, 0.5, 2);
+
+    _controls = new OrbitControls(_camera, _renderer.domElement);
+    _controls.autoRotate     = true;
+    _controls.autoRotateSpeed = 3;
+    _controls.enableDamping  = true;
+
+    (function animate() {
+        _animId = requestAnimationFrame(animate);
+        if (_scene && _renderer && _camera) {
+            _controls.update();
+            _renderer.render(_scene, _camera);
+        }
+    })();
+}
+
+window._initViewer = function(glbUrl) {
+    const canvas  = document.getElementById('rv-canvas');
+    const noModel = document.getElementById('rv-no-model');
+    if (!canvas) return;
+
+    _ensureRenderer();
+
+    // Reset camera and controls for this candidate
+    _camera.position.set(0, 0.5, 2);
+    _controls.target.set(0, 0, 0);
+    _controls.update();
+
+    // Build a fresh scene (lights + empty group while model loads)
     const scene = new THREE.Scene();
-
-    const camera = new THREE.PerspectiveCamera(45, w / h, 0.001, 1000);
-    camera.position.set(0, 0.5, 2);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 3;
-    controls.enableDamping = true;
-
     scene.add(new THREE.AmbientLight(0xffffff, 1.2));
     const dir = new THREE.DirectionalLight(0xffffff, 1.5);
     dir.position.set(1, 2, 3);
     scene.add(dir);
+    _scene = scene;
 
-    const loader = new GLTFLoader();
-    loader.load(glbUrl, (gltf) => {
-        const obj = gltf.scene;
-        // Auto-center + scale
-        const box = new THREE.Box3().setFromObject(obj);
-        const size = box.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z) || 1;
-        obj.scale.multiplyScalar(1.5 / maxDim);
-        const center = box.getCenter(new THREE.Vector3());
-        obj.position.sub(center.multiplyScalar(1.5 / maxDim));
-        scene.add(obj);
-    }, undefined, (err) => {
-        console.error('GLTFLoader error:', err);
-    });
+    new GLTFLoader().load(
+        glbUrl,
+        (gltf) => {
+            // Only apply to the scene that was current when this load started
+            if (_scene !== scene) return;
+            const obj = gltf.scene;
+            const box = new THREE.Box3().setFromObject(obj);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 1;
+            const scale = 1.5 / maxDim;
+            obj.scale.multiplyScalar(scale);
+            const center = box.getCenter(new THREE.Vector3());
+            obj.position.sub(center.multiplyScalar(scale));
+            scene.add(obj);
+        },
+        undefined,
+        (err) => {
+            console.error('GLB load error:', err);
+            if (canvas)  canvas.style.display  = 'none';
+            if (noModel) {
+                noModel.textContent    = '⚠ Failed to load 3D model';
+                noModel.style.display  = '';
+            }
+        }
+    );
+};
 
-    (function animate() {
-        requestAnimationFrame(animate);
-        controls.update();
-        renderer.render(scene, camera);
-    })();
-}
-
-document.querySelectorAll('canvas.model-viewer').forEach(initViewer);
+window._disposeViewer = function() {
+    // Stop rendering the current scene; keep the renderer alive.
+    _scene = null;
+};
 </script>
 
-<!-- ------------------------------------------------------------------ -->
-<!-- UI interaction (vanilla JS)                                         -->
-<!-- ------------------------------------------------------------------ -->
+<!-- ================================================================ -->
+<!-- App logic                                                          -->
+<!-- ================================================================ -->
 <script>
-// ---- Run Pipeline ----
-document.querySelectorAll('.btn-run').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const taxon = btn.dataset.taxon;
-        btn.disabled = true;
-        btn.textContent = 'Running…';
+// ─── State ───────────────────────────────────────────────────────────────────
+let currentPest  = null;
+let candidates   = [];
+let currentIdx   = 0;
+let _inDoneState = false;
 
-        const progressWrap = document.getElementById('progress-' + taxon);
-        const progressBar  = document.getElementById('progress-bar-' + taxon);
-        const progressLabel = document.getElementById('progress-label-' + taxon);
-        progressWrap.style.display = 'block';
-        progressBar.style.width = '20%';
-        progressLabel.textContent = 'Downloading images…';
+// ─── Async pipeline helper ────────────────────────────────────────────────────
+async function runAsync(pestType, nNew = 1) {
+    try {
+        await fetch('/curator/run-async', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({pest_type: pestType, n_new: nNew}),
+        });
+    } catch (err) {
+        console.warn('runAsync failed:', err);
+    }
+}
+
+// ─── Card poller ──────────────────────────────────────────────────────────────
+let _cardPollTimer = null;
+
+function startCardPoller() {
+    stopCardPoller();
+    _refreshCardStats();
+    _cardPollTimer = setInterval(_refreshCardStats, 5000);
+}
+
+function stopCardPoller() {
+    if (_cardPollTimer !== null) {
+        clearInterval(_cardPollTimer);
+        _cardPollTimer = null;
+    }
+}
+
+async function _refreshCardStats() {
+    try {
+        const statusResp = await fetch('/curator/api/pipeline-status');
+        const statusData = await statusResp.json();
+        const running = statusData.running || {};
+        let anyRunning = false;
+
+        for (const pest of ['mouse', 'rat', 'cockroach']) {
+            if (running[pest]) anyRunning = true;
+            const progressWrap = document.getElementById(`run-progress-${pest}`);
+            const label = document.getElementById(`run-label-${pest}`);
+            if (progressWrap) {
+                progressWrap.style.display = running[pest] ? '' : 'none';
+                if (label) label.textContent = running[pest] ? 'Fetching…' : '';
+            }
+        }
+
+        // Update stat badges
+        const candidateResps = await Promise.all(
+            ['mouse', 'rat', 'cockroach'].map(p =>
+                fetch(`/curator/api/candidates/${p}`).then(r => r.json()).catch(() => null)
+            )
+        );
+        ['mouse', 'rat', 'cockroach'].forEach((pest, i) => {
+            const data = candidateResps[i];
+            if (!data || data.status !== 'ok') return;
+            const card = document.querySelector(`.pest-card[data-pest="${pest}"]`);
+            if (!card) return;
+            const statKept  = card.querySelector('.stat-kept');
+            const statReady = card.querySelector('.stat-ready');
+            if (statKept)  statKept.textContent  = `${data.kept_count} kept`;
+            if (statReady) statReady.textContent = `${(data.candidates || []).length} ready`;
+        });
+
+        if (!anyRunning) stopCardPoller();
+    } catch (err) {
+        console.warn('_refreshCardStats error:', err);
+    }
+}
+
+// ─── Review poller ────────────────────────────────────────────────────────────
+let _reviewPollTimer  = null;
+let _reviewPollPest   = null;
+let _reviewPollPrevLen = 0;
+
+function startReviewPoller(pestType) {
+    stopReviewPoller();
+    _reviewPollPest    = pestType;
+    _reviewPollPrevLen = candidates.length;
+    _reviewPollTimer   = setInterval(_checkForNewCandidates, 3000);
+}
+
+function stopReviewPoller() {
+    if (_reviewPollTimer !== null) {
+        clearInterval(_reviewPollTimer);
+        _reviewPollTimer = null;
+    }
+    _reviewPollPest = null;
+}
+
+async function _checkForNewCandidates() {
+    if (!_reviewPollPest) return;
+    try {
+        const resp = await fetch(`/curator/api/candidates/${_reviewPollPest}`);
+        const data = await resp.json();
+        if (!resp.ok || data.status !== 'ok') return;
+
+        const newCandidates = data.candidates || [];
+        if (newCandidates.length > _reviewPollPrevLen && _inDoneState) {
+            // New candidates arrived — auto-load from where we left off
+            stopReviewPoller();
+            candidates   = newCandidates;
+            currentIdx   = _reviewPollPrevLen;
+            _inDoneState = false;
+            renderCandidate(currentIdx);
+            return;
+        }
+
+        // Check if pipeline has finished with no new candidates
+        const statusResp = await fetch('/curator/api/pipeline-status');
+        const statusData = await statusResp.json();
+        const pipeRunning = (statusData.running || {})[_reviewPollPest];
+        if (!pipeRunning) {
+            stopReviewPoller();
+            if (_inDoneState) {
+                document.getElementById('review-done-text').textContent =
+                    'All candidates reviewed for this pest type.';
+            }
+        }
+    } catch (err) {
+        console.warn('_checkForNewCandidates error:', err);
+    }
+}
+
+// ─── View switching ──────────────────────────────────────────────────────────
+function showCards() {
+    document.getElementById('view-cards').style.display  = '';
+    document.getElementById('view-review').style.display = 'none';
+    if (window._disposeViewer) window._disposeViewer();
+    currentPest  = null;
+    candidates   = [];
+    _inDoneState = false;
+    stopReviewPoller();
+    startCardPoller();
+}
+
+function setReviewContentVisible(visible) {
+    const display = visible ? '' : 'none';
+    document.getElementById('review-species').style.display = display;
+    document.getElementById('review-panels').style.display  = display;
+    document.getElementById('review-actions').style.display = display;
+}
+
+async function runPipelineForPest(pestType) {
+    const resp = await fetch('/curator/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({pest_type: pestType}),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.status !== 'ok') {
+        throw new Error(data.error || `HTTP ${resp.status}`);
+    }
+
+    // Surface per-taxon failures when the backend reports them inside status=ok.
+    const taxonErrors = [];
+    for (const [taxon, results] of Object.entries(data.results || {})) {
+        if (Array.isArray(results) && results.some(item => item && item.error)) {
+            taxonErrors.push(taxon);
+        }
+    }
+    if (taxonErrors.length > 0) {
+        throw new Error(`Pipeline failed for taxon(s): ${taxonErrors.join(', ')}`);
+    }
+}
+
+async function showReview(pestType) {
+    currentPest = pestType;
+    document.getElementById('view-cards').style.display  = 'none';
+    document.getElementById('view-review').style.display = '';
+    document.getElementById('review-done').style.display = 'none';
+    document.getElementById('btn-run-review').dataset.pest = pestType;
+    stopCardPoller();
+    runAsync(pestType, 5);  // fire-and-forget: fetch 5 for the selected pest
+    await refreshCandidates(pestType);
+}
+
+async function refreshCandidates(pestType) {
+    try {
+        const resp = await fetch(`/curator/api/candidates/${pestType}`);
+        const data = await resp.json();
+        if (!resp.ok || data.status !== 'ok') {
+            throw new Error(data.error || `HTTP ${resp.status}`);
+        }
+        candidates = data.candidates || [];
+        currentIdx = 0;
+        updateKeptList(data.kept_models || [], data.kept_count || 0, pestType);
+        if (candidates.length === 0) {
+            showDone('No candidates yet.', 'Empty');
+        } else {
+            renderCandidate(currentIdx);
+        }
+    } catch (err) {
+        console.error('Failed to load candidates:', err);
+        candidates = [];
+        currentIdx = 0;
+        showDone('Could not load candidates. Please try again.', 'Error', true);
+    }
+}
+
+// ─── Render one candidate ────────────────────────────────────────────────────
+function renderCandidate(idx) {
+    const c = candidates[idx];
+    if (!c) { showDone(); return; }
+
+    setReviewContentVisible(true);
+    document.getElementById('review-done').style.display  = 'none';
+    document.getElementById('review-progress').textContent = `${idx + 1} / ${candidates.length}`;
+
+    // Species info
+    document.getElementById('rv-scientific').textContent = c.scientific_name;
+    document.getElementById('rv-common').textContent     = c.common_names.join(', ');
+    document.getElementById('rv-prevalence').textContent = c.indoor_prevalence;
+    const badge = document.getElementById('rv-badge');
+    badge.textContent = c.taxon_key ? `taxon ${c.taxon_key}` : '';
+    badge.className   = `pest-badge pest-badge--${currentPest}`;
+    const gbifWrap = document.getElementById('rv-gbif-wrap');
+    const gbifLink = document.getElementById('rv-gbif');
+    if (c.gbif_url) {
+        gbifLink.href = c.gbif_url;
+        gbifWrap.style.display = '';
+    } else {
+        gbifWrap.style.display = 'none';
+    }
+
+    // Images
+    const origEl = document.getElementById('rv-original');
+    const nobgEl = document.getElementById('rv-nobg');
+    if (c.has_original) {
+        origEl.src = c.original_url;
+        origEl.style.display = '';
+    } else {
+        origEl.style.display = 'none';
+    }
+    if (c.has_nobg) {
+        nobgEl.src = c.nobg_url;
+        nobgEl.style.display = '';
+    } else {
+        nobgEl.style.display = 'none';
+    }
+
+    // 3D viewer
+    const canvas  = document.getElementById('rv-canvas');
+    const noModel = document.getElementById('rv-no-model');
+    if (c.has_model) {
+        canvas.style.display  = '';
+        noModel.style.display = 'none';
+        if (window._initViewer) window._initViewer(c.model_url);
+    } else {
+        canvas.style.display  = 'none';
+        noModel.style.display = '';
+        if (window._disposeViewer) window._disposeViewer();
+    }
+
+    // Keep button: only enabled when model exists
+    const keepBtn = document.getElementById('btn-keep');
+    keepBtn.disabled    = !c.has_model;
+    keepBtn.title       = c.has_model ? '' : 'Generate 3D model first';
+    keepBtn.textContent = '✓ Keep';
+    keepBtn.classList.remove('btn-kept');
+}
+
+function showDone(message = 'All candidates reviewed for this pest type.', progressLabel = 'Done', isError = false) {
+    setReviewContentVisible(false);
+    document.getElementById('review-done').style.display   = '';
+    document.getElementById('review-progress').textContent = progressLabel;
+    if (window._disposeViewer) window._disposeViewer();
+
+    if (!isError && currentPest) {
+        _inDoneState = true;
+        const fetchMsg = candidates.length > 0 ? 'Fetching more candidates…' : 'Fetching candidates…';
+        document.getElementById('review-done-text').textContent = fetchMsg;
+        runAsync(currentPest, 5);  // bank exhausted — refill with 5
+        startReviewPoller(currentPest);
+    } else {
+        _inDoneState = false;
+        document.getElementById('review-done-text').textContent = message;
+    }
+}
+
+// ─── Kept models list ────────────────────────────────────────────────────────
+function updateKeptList(keptModels, keptCount, pestType) {
+    const wrap  = document.getElementById('kept-list-wrap');
+    const title = document.getElementById('kept-list-title');
+    const list  = document.getElementById('kept-list');
+    if (keptCount === 0) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    title.textContent  = `Kept models for ${pestType} (${keptCount})`;
+    list.innerHTML     = keptModels.map(f =>
+        `<li><code>generator/models/${pestType}/${f}</code></li>`
+    ).join('');
+}
+
+// ─── Card clicks ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.pest-card').forEach(card => {
+    card.addEventListener('click', () => showReview(card.dataset.pest));
+});
+
+// ─── Back buttons ────────────────────────────────────────────────────────────
+document.getElementById('btn-back').addEventListener('click', showCards);
+document.getElementById('btn-done-back').addEventListener('click', showCards);
+
+// ─── Run Pipeline (card view) ────────────────────────────────────────────────
+document.querySelectorAll('.pest-run-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const pest = btn.dataset.pest;
+        btn.disabled = true;
+        const progressWrap = document.getElementById(`run-progress-${pest}`);
+        const bar   = document.getElementById(`run-bar-${pest}`);
+        const label = document.getElementById(`run-label-${pest}`);
+        progressWrap.style.display = '';
+        bar.style.width   = '20%';
+        label.textContent = 'Opening review…';
+
+        // Move immediately to review mode so the full candidate workflow is visible.
+        await showReview(pest);
+        const reviewRunBtn = document.getElementById('btn-run-review');
+        reviewRunBtn.disabled    = true;
+        reviewRunBtn.textContent = 'Running…';
+        document.getElementById('review-progress').textContent = 'Running…';
 
         try {
-            const resp = await fetch('/curator/run', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({taxon_key: taxon}),
-            });
-            progressBar.style.width = '90%';
-            progressLabel.textContent = 'Finishing…';
-            const data = await resp.json();
-            if (data.status === 'ok') {
-                progressBar.style.width = '100%';
-                progressLabel.textContent = 'Done! Reloading…';
-                window.location.reload();
-            } else {
-                progressLabel.textContent = 'Error: ' + (data.error || 'unknown');
-                btn.disabled = false;
-                btn.textContent = 'Run Pipeline';
-            }
+            label.textContent = 'Running pipeline…';
+            await runPipelineForPest(pest);
+            bar.style.width   = '100%';
+            label.textContent = 'Done!';
+            await refreshCandidates(pest);
         } catch (err) {
-            progressLabel.textContent = 'Network error: ' + err.message;
+            label.textContent = 'Error';
+            showDone(`Pipeline failed: ${err.message}`, 'Error', true);
+        } finally {
+            reviewRunBtn.disabled    = false;
+            reviewRunBtn.textContent = 'Run Pipeline';
             btn.disabled = false;
-            btn.textContent = 'Run Pipeline';
         }
     });
 });
 
-// ---- Keep ----
-document.querySelectorAll('.btn-keep').forEach(btn => {
-    if (btn.disabled) return;
-    btn.addEventListener('click', async () => {
-        const taxon = btn.dataset.taxon;
-        const index = btn.dataset.index;
-        btn.disabled = true;
-        btn.textContent = 'Saving…';
-
-        try {
-            const resp = await fetch('/curator/keep', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({taxon_key: taxon, candidate_index: parseInt(index)}),
-            });
-            const data = await resp.json();
-            if (data.status === 'ok') {
-                btn.textContent = 'Kept!';
-                btn.classList.add('btn-kept');
-            } else {
-                btn.textContent = 'Error';
-                btn.disabled = false;
-                alert('Keep failed: ' + (data.error || 'unknown'));
-            }
-        } catch (err) {
-            btn.textContent = 'Error';
-            btn.disabled = false;
-            alert('Network error: ' + err.message);
-        }
-    });
+// ─── Run Pipeline (review view) ──────────────────────────────────────────────
+document.getElementById('btn-run-review').addEventListener('click', async function() {
+    const pest = this.dataset.pest;
+    this.disabled    = true;
+    this.textContent = 'Running…';
+    document.getElementById('review-progress').textContent = 'Running…';
+    try {
+        await runPipelineForPest(pest);
+        await refreshCandidates(pest);
+    } catch (err) {
+        showDone(`Pipeline failed: ${err.message}`, 'Error', true);
+    } finally {
+        this.disabled    = false;
+        this.textContent = 'Run Pipeline';
+    }
 });
 
-// ---- Discard — deletes files server-side + logs URL to discards.json ----
-document.querySelectorAll('.btn-discard').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const taxon = btn.dataset.taxon;
-        const index = btn.dataset.index;
-        const card = document.getElementById('card-' + taxon + '-' + index);
-        btn.disabled = true;
-        btn.textContent = 'Discarding…';
-
-        try {
-            const resp = await fetch('/curator/discard', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({taxon_key: taxon, candidate_index: parseInt(index)}),
-            });
-            const data = await resp.json();
-            if (data.status === 'ok') {
-                // Fade out then remove card entirely
-                if (card) {
-                    card.classList.add('card-discarded');
-                    setTimeout(() => card.remove(), 400);
-                }
-            } else {
-                btn.disabled = false;
-                btn.textContent = 'Discard';
-                alert('Discard failed: ' + (data.error || 'unknown'));
-            }
-        } catch (err) {
-            btn.disabled = false;
-            btn.textContent = 'Discard';
-            alert('Network error: ' + err.message);
+// ─── Keep ────────────────────────────────────────────────────────────────────
+document.getElementById('btn-keep').addEventListener('click', async function() {
+    const c = candidates[currentIdx];
+    if (!c) return;
+    this.disabled    = true;
+    this.textContent = 'Saving…';
+    try {
+        const resp = await fetch('/curator/keep', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({taxon_key: c.taxon_key, candidate_index: c.candidate_index}),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            this.textContent = '✓ Kept!';
+            this.classList.add('btn-kept');
+            // Update kept list in background then advance
+            const infoResp = await fetch(`/curator/api/candidates/${currentPest}`);
+            const infoData = await infoResp.json();
+            updateKeptList(infoData.kept_models || [], infoData.kept_count || 0, currentPest);
+            setTimeout(advance, 700);
+        } else {
+            alert('Keep failed: ' + data.error);
+            this.disabled    = false;
+            this.textContent = '✓ Keep';
         }
-    });
+    } catch (err) {
+        alert('Network error: ' + err.message);
+        this.disabled    = false;
+        this.textContent = '✓ Keep';
+    }
 });
+
+// ─── Discard ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-discard').addEventListener('click', async function() {
+    const c = candidates[currentIdx];
+    if (!c) return;
+    this.disabled    = true;
+    this.textContent = 'Discarding…';
+    try {
+        const resp = await fetch('/curator/discard', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({taxon_key: c.taxon_key, candidate_index: c.candidate_index}),
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            runAsync(currentPest, 1);  // replenish bank
+            candidates.splice(currentIdx, 1);
+            if (currentIdx >= candidates.length) currentIdx = candidates.length - 1;
+            if (candidates.length === 0) { showDone('All candidates reviewed for this pest type.'); }
+            else { renderCandidate(currentIdx); }
+        } else {
+            alert('Discard failed: ' + data.error);
+        }
+    } catch (err) {
+        alert('Network error: ' + err.message);
+    } finally {
+        this.disabled    = false;
+        this.textContent = '✗ Discard';
+    }
+});
+
+// ─── Skip ────────────────────────────────────────────────────────────────────
+document.getElementById('btn-skip').addEventListener('click', advance);
+
+function advance() {
+    if (currentPest) runAsync(currentPest, 1);  // replenish bank
+    currentIdx++;
+    if (currentIdx >= candidates.length) showDone('All candidates reviewed for this pest type.');
+    else renderCandidate(currentIdx);
+}
+
+// ─── Page-load auto-start ────────────────────────────────────────────────────
+(function autoStart() {
+    ['mouse', 'rat', 'cockroach'].forEach(p => runAsync(p));
+    startCardPoller();
+})();
 </script>
 
 </body>

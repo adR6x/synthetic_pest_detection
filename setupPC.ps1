@@ -114,32 +114,6 @@ if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
 Copy-Item $stubSrc $dest -Recurse
 Info "mmcv stub installed to $dest"
 
-# ─── TripoSR stub ─────────────────────────────────────────────────────────────
-# TripoSR has no setup.py/pyproject.toml so it cannot be pip-installed.
-# We clone it and copy the tsr/ package into the virtualenv, same approach
-# as mmcv above. torchmcubes (marching-cubes kernel) is installed via pip.
-Info "Installing TripoSR (clone + copy tsr/ package into venv)..."
-$triposrClone = Join-Path $PSScriptRoot ".triposr_clone"
-if (Test-Path $triposrClone) {
-    Info "TripoSR already cloned — pulling latest..."
-    git -C $triposrClone pull --ff-only
-} else {
-    git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR.git $triposrClone
-}
-$tsrSrc = Join-Path $triposrClone "tsr"
-$tsrDest = Join-Path $site "tsr"
-if (Test-Path $tsrDest) { Remove-Item $tsrDest -Recurse -Force }
-Copy-Item $tsrSrc $tsrDest -Recurse
-Info "tsr package installed to $tsrDest"
-
-Info "Installing torchmcubes (TripoSR mesh extraction kernel)..."
-try {
-    poetry run pip install --quiet git+https://github.com/tatsy/torchmcubes.git 2>&1 | Out-Null
-    Info "torchmcubes installed"
-} catch {
-    Warn "torchmcubes build failed (requires CUDA + GPU) — TripoSR 3D generation will not work on this machine. Install CUDA and re-run to enable it."
-}
-
 Write-Host ""
 Write-Host "Setup complete! Launching poetry shell..." -ForegroundColor Green
 Write-Host ""

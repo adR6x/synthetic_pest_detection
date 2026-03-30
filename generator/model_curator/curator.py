@@ -1,11 +1,11 @@
-"""Model curator — GBIF image fetch, background removal, optional TripoSR 3D generation.
+"""Model curator — GBIF image fetch, background removal, textured ellipsoid 3D generation.
 
 Storage layout
 --------------
 outputs/curator/<taxon_key>/          <- gitignored; all temporary
     original_<i>.jpg                  <- downloaded image
     nobg_<i>.png                      <- background-removed image
-    model_<i>.glb                     <- 3D model (if TripoSR available)
+    model_<i>.glb                     <- textured ellipsoid 3D model
     metadata.json                     <- maps index -> GBIF URL (temp)
 
 generator/models/<pest_type>.glb      <- git-tracked; written only by keep_candidate()
@@ -21,51 +21,60 @@ import shutil
 import requests
 
 # ---------------------------------------------------------------------------
-# Optional TripoSR import (guarded)
+# Ellipsoid GLB generation
 # ---------------------------------------------------------------------------
-TRIPOSR_AVAILABLE = False
-try:
-    from tsr.system import TSR as TSR_CLASS  # noqa: F401
-    TRIPOSR_AVAILABLE = True
-except ImportError:
-    pass
 
-_triposr_model = None  # lazy singleton
-
-
-def _get_triposr_model():
-    global _triposr_model
-    if _triposr_model is None:
-        from tsr.system import TSR as TSR_CLASS  # noqa: F811
-        import torch
-        _triposr_model = TSR_CLASS.from_pretrained(
-            "stabilityai/TripoSR",
-            config_name="config.yaml",
-            weight_name="model.ckpt",
-        )
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        _triposr_model = _triposr_model.to(device)
-        _triposr_model.renderer.set_chunk_size(8192)
-    return _triposr_model
+# Pest-specific ellipsoid scales: (length_X, width_Y, height_Z)
+_PEST_SCALES: dict[str, tuple[float, float, float]] = {
+    "cockroach": (2.0, 1.0, 0.35),   # flat, wide oval
+    "mouse":     (1.6, 0.8, 0.8),    # rounded, slightly elongated
+    "rat":       (2.2, 0.9, 0.9),    # longer than mouse
+}
 
 
-def _run_triposr(nobg_path: str, out_glb_path: str) -> bool:
-    """Run TripoSR on a background-removed image and save a .glb file."""
+def _generate_ellipsoid_glb(nobg_path: str, out_glb_path: str, pest_type: str = "") -> bool:
+    """Project a background-removed image onto a UV ellipsoid and export as .glb."""
     try:
-        import torch
+        import numpy as np
+        import trimesh
+        import trimesh.visual.material
         from PIL import Image
 
-        model = _get_triposr_model()
-        device = next(model.parameters()).device
+        sx, sy, sz = _PEST_SCALES.get(pest_type, (1.0, 1.0, 1.0))
+        n_lat, n_lon = 32, 64
 
-        image = Image.open(nobg_path).convert("RGBA")
-        with torch.no_grad():
-            scene_codes = model([image], device=device)
-        meshes = model.extract_mesh(scene_codes, resolution=256)
-        meshes[0].export(out_glb_path)
+        verts, uvs = [], []
+        for i in range(n_lat + 1):
+            theta = np.pi * i / n_lat
+            for j in range(n_lon + 1):
+                phi = 2.0 * np.pi * j / n_lon
+                verts.append([
+                    np.sin(theta) * np.cos(phi) * sx,
+                    np.sin(theta) * np.sin(phi) * sy,
+                    np.cos(theta) * sz,
+                ])
+                uvs.append([j / n_lon, 1.0 - i / n_lat])
+
+        faces = []
+        for i in range(n_lat):
+            for j in range(n_lon):
+                a = i * (n_lon + 1) + j
+                b, c, d = a + 1, a + (n_lon + 1), a + (n_lon + 1) + 1
+                faces += [[a, c, b], [b, c, d]]
+
+        verts = np.array(verts, dtype=np.float32)
+        faces = np.array(faces, dtype=np.int32)
+        uvs   = np.array(uvs,   dtype=np.float32)
+
+        img      = Image.open(nobg_path).convert("RGBA")
+        material = trimesh.visual.material.SimpleMaterial(image=img)
+        visuals  = trimesh.visual.TextureVisuals(uv=uvs, material=material)
+        mesh     = trimesh.Trimesh(vertices=verts, faces=faces,
+                                   visual=visuals, process=False)
+        mesh.export(out_glb_path)
         return True
     except Exception as e:
-        print(f"TripoSR error: {e}")
+        print(f"Ellipsoid GLB error: {e}")
         return False
 
 
@@ -197,10 +206,10 @@ def run_pipeline_for_taxon(
     taxon_key: str,
     output_dir: str,
     n_images: int = 5,
-    triposr_available: bool = False,
+    pest_type: str = "",
     discards_path: str | None = None,
 ) -> list[dict]:
-    """Download images, remove backgrounds, optionally run TripoSR.
+    """Download images, remove backgrounds, generate textured ellipsoid GLB.
 
     - Skips GBIF URLs that are in discards.json.
     - Saves index→URL mapping to metadata.json so discards can be logged later.
@@ -231,18 +240,21 @@ def run_pipeline_for_taxon(
     # Fetch new URLs only if we need more images
     new_urls: list[str] = []
     if need > 0:
-        # Fetch extras to compensate for any that might be in the discard list
+        # Exclude both discarded URLs and URLs already on disk
+        already_have: set[str] = set(metadata.values())
+        exclude_urls = discarded_urls | already_have
+        # Fetch extras to compensate for any that might be in the exclude set
         new_urls = _fetch_gbif_image_urls(
             taxon_key,
-            need + len(discarded_urls),
-            exclude_urls=discarded_urls,
+            need + len(exclude_urls),
+            exclude_urls=exclude_urls,
         )
         new_urls = new_urls[:need]
 
     rembg_session = new_session("u2net")
     results: list[dict] = []
 
-    # Process existing indices first (rembg / TripoSR catch-up)
+    # Process existing indices first (rembg / ellipsoid catch-up)
     all_indices = sorted(existing_indices) + list(range(next_index, next_index + len(new_urls)))
 
     for idx, i in enumerate(all_indices):
@@ -279,14 +291,9 @@ def run_pipeline_for_taxon(
             except Exception as e:
                 print(f"  rembg failed for {taxon_key}[{i}]: {e}")
 
-        # TripoSR (optional)
-        if (
-            triposr_available
-            and TRIPOSR_AVAILABLE
-            and not os.path.exists(model_path)
-            and os.path.exists(nobg_path)
-        ):
-            _run_triposr(nobg_path, model_path)
+        # Ellipsoid 3D model (always runs when nobg exists)
+        if not os.path.exists(model_path) and os.path.exists(nobg_path):
+            _generate_ellipsoid_glb(nobg_path, model_path, pest_type)
 
         results.append({
             "taxon_key": taxon_key,
