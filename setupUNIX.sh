@@ -12,22 +12,32 @@ warn()    { echo -e "${YELLOW}[setup]${NC} $1"; }
 error()   { echo -e "${RED}[setup]${NC} $1"; exit 1; }
 
 # ─── Python ───────────────────────────────────────────────────────────────────
-info "Checking for Python 3..."
-if ! command -v python3 &>/dev/null; then
-    error "Python 3 not found. Please install Python 3.12+ and re-run."
+info "Checking for Python 3.12+..."
+PROJECT_PYTHON=""
+if command -v python3.12 &>/dev/null; then
+    PROJECT_PYTHON="python3.12"
+elif command -v python3 &>/dev/null; then
+    if python3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)"; then
+        PROJECT_PYTHON="python3"
+    fi
 fi
 
-PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-info "Found Python $PYTHON_VERSION"
+if [ -z "$PROJECT_PYTHON" ]; then
+    error "Python 3.12+ not found. Install Python 3.12 and re-run."
+fi
+
+PYTHON_VERSION=$($PROJECT_PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
+info "Using $PROJECT_PYTHON (Python $PYTHON_VERSION)"
 
 # ─── Poetry ───────────────────────────────────────────────────────────────────
 export PATH="$HOME/.local/bin:$PATH"
+POETRY_BIN="$HOME/.local/bin/poetry"
 
 if command -v poetry &>/dev/null; then
     info "Poetry already installed ($(poetry --version))"
 else
     info "Installing Poetry..."
-    curl -sSL https://install.python-poetry.org | python3 -
+    curl -sSL https://install.python-poetry.org | $PROJECT_PYTHON -
 
     # Persist to shell config
     SHELL_RC=""
@@ -42,24 +52,35 @@ else
         info "Added Poetry to PATH in $SHELL_RC"
     fi
 
-    info "Poetry installed ($(poetry --version))"
+    if [ ! -x "$POETRY_BIN" ]; then
+        error "Poetry install did not produce $POETRY_BIN."
+    fi
+    info "Poetry installed ($($POETRY_BIN --version))"
+fi
+
+POETRY_CMD="${POETRY_BIN}"
+if command -v poetry &>/dev/null; then
+    POETRY_CMD="poetry"
 fi
 
 # ─── Poetry shell plugin ──────────────────────────────────────────────────────
-if poetry self show plugins 2>/dev/null | grep -q 'poetry-plugin-shell'; then
+if $POETRY_CMD self show plugins 2>/dev/null | grep -q 'poetry-plugin-shell'; then
     info "poetry-plugin-shell already installed"
 else
     info "Installing poetry-plugin-shell..."
-    poetry self add poetry-plugin-shell
+    $POETRY_CMD self add poetry-plugin-shell
 fi
 
 # ─── Install dependencies ─────────────────────────────────────────────────────
-info "Refreshing poetry.lock to match pyproject.toml..."
 cd "$(dirname "$0")"
-poetry lock --no-interaction
+info "Configuring Poetry to use $PROJECT_PYTHON..."
+$POETRY_CMD env use "$PROJECT_PYTHON"
+
+info "Refreshing poetry.lock to match pyproject.toml..."
+$POETRY_CMD lock --no-interaction
 
 info "Installing project dependencies..."
-poetry install --no-interaction
+$POETRY_CMD install --no-interaction
 
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 # mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab
@@ -69,7 +90,7 @@ poetry install --no-interaction
 # virtualenv so torch.hub.load("YvanYin/Metric3D", ...) works out of the box.
 info "Installing mmcv stub (delegates to mmengine)..."
 STUB_SRC="$(dirname "$0")/generator/mmcv_stub/mmcv"
-SITE=$(poetry run python -c "import site; print(site.getsitepackages()[0])")
+SITE=$($POETRY_CMD run python -c "import site; print(site.getsitepackages()[0])")
 cp -r "$STUB_SRC" "$SITE/"
 info "mmcv stub installed to $SITE/mmcv"
 
@@ -82,4 +103,4 @@ info "ffmpeg bundled via imageio-ffmpeg (already in pyproject.toml dependencies)
 echo ""
 echo -e "${GREEN}✓ Setup complete! Launching poetry shell...${NC}"
 echo ""
-exec poetry shell
+exec $POETRY_CMD shell

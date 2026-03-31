@@ -37,23 +37,33 @@ function Add-UserPathIfMissing($Dir) {
     }
 }
 
-Info "Checking for Python 3..."
-$pythonExe = $null
-$pythonArgs = @()
+Info "Checking for Python 3.12+..."
+$projectPythonPath = $null
 
 if (Get-Command py -ErrorAction SilentlyContinue) {
-    $pythonExe = "py"
-    $pythonArgs = @("-3")
-} elseif (Get-Command python -ErrorAction SilentlyContinue) {
-    $pythonExe = "python"
-    $pythonArgs = @()
-} else {
-    Fail "Python 3 not found. Please install Python 3.12+ and re-run."
+    try {
+        $pyPath = (& py -3.12 -c "import sys; print(sys.executable)").Trim()
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($pyPath)) {
+            $projectPythonPath = $pyPath
+        }
+    } catch {}
 }
 
-$versionExpr = "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"
-$pythonVersion = & $pythonExe @pythonArgs -c $versionExpr
-Info "Found Python $pythonVersion"
+if (-not $projectPythonPath -and (Get-Command python -ErrorAction SilentlyContinue)) {
+    try {
+        & python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)"
+        if ($LASTEXITCODE -eq 0) {
+            $projectPythonPath = (Get-Command python).Source
+        }
+    } catch {}
+}
+
+if (-not $projectPythonPath) {
+    Fail "Python 3.12+ not found. Install Python 3.12 and re-run."
+}
+
+$pythonVersion = & $projectPythonPath -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
+Info "Using Python $pythonVersion at $projectPythonPath"
 
 $poetryCmd = Get-Command poetry -ErrorAction SilentlyContinue
 if ($poetryCmd) {
@@ -61,7 +71,7 @@ if ($poetryCmd) {
 } else {
     Info "Installing Poetry..."
     $installer = (Invoke-WebRequest -Uri "https://install.python-poetry.org" -UseBasicParsing).Content
-    $installer | & $pythonExe @pythonArgs -
+    $installer | & $projectPythonPath -
 
     $poetryPaths = @(
         (Join-Path $env:APPDATA "Python\Scripts"),
@@ -98,6 +108,8 @@ if ($hasShellPlugin) {
 
 Info "Refreshing poetry.lock to match pyproject.toml..."
 Set-Location -Path $PSScriptRoot
+Info "Configuring Poetry to use Python 3.12+..."
+poetry env use "$projectPythonPath"
 poetry lock --no-interaction
 
 Info "Installing project dependencies..."
