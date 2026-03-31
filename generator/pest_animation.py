@@ -36,7 +36,7 @@ def compute_walk(
 
     Uses Sagnik's steering model: holds a target angle for 40-120 frames,
     gradually turns toward it (max 2°/frame), smooths speed with a lerp,
-    and occasionally pauses.
+    and occasionally pauses (no burst/dash mode).
 
     When surface-specific mask files are provided via `surface_mask_paths`,
     those exact per-pest movement masks are loaded and used at runtime.
@@ -118,7 +118,6 @@ def compute_walk(
     target_speed  = float(speed)
     pause_timer   = 0
     steer_timer   = 0
-    burst_timer   = 0
     max_turn      = math.radians(float(max_turn_deg))
 
     frames = []
@@ -167,41 +166,27 @@ def compute_walk(
             pause_timer -= 1
             continue
 
-        # Pick a new target direction every 20-60 frames
+        # Pick a new target direction every 40-120 frames.
         if steer_timer <= 0:
-            # 5% chance of a high-speed dash in the current direction
-            if random.random() < 0.05:
-                burst_timer  = random.randint(10, 20)
-                target_speed = min(dynamic_base_step * 6.0, dynamic_max_step)
-                # Lock heading during dash so it looks like a purposeful sprint
-                target_angle = current_angle
-            else:
-                target_angle = random.uniform(0, 2 * math.pi)
-                target_speed = dynamic_base_step * random.uniform(0.5, 1.5)
+            target_angle = random.uniform(0, 2 * math.pi)
+            target_speed = dynamic_base_step * random.uniform(0.5, 1.5)
             steer_timer = random.randint(40, 120)
         steer_timer -= 1
 
-        # Count down burst; snap speed back to normal when it expires
-        if burst_timer > 0:
-            burst_timer  -= 1
-            current_speed = min(target_speed, dynamic_max_step)   # skip lerp — instantly fast
-            if burst_timer == 0:
-                target_speed = dynamic_base_step   # ramp back to base after dash
-        else:
-            # Gradually steer toward target angle (max 8° per frame)
-            diff = (target_angle - current_angle + math.pi) % (2 * math.pi) - math.pi
-            current_angle += max(-max_turn, min(max_turn, diff))
+        # Gradually steer toward target angle (max max_turn_deg per frame).
+        diff = (target_angle - current_angle + math.pi) % (2 * math.pi) - math.pi
+        current_angle += max(-max_turn, min(max_turn, diff))
 
-            # Smooth speed with lerp
-            current_speed += (target_speed - current_speed) * 0.08
+        # Smooth speed with lerp.
+        current_speed += (target_speed - current_speed) * 0.08
 
         # Global speed cap by pest type
         current_speed = min(current_speed, dynamic_max_step)
 
-        # Occasional pause, then burst (species-configurable probability).
-        if burst_timer == 0 and random.random() < pause_chance:
+        # Occasional pause (species-configurable probability).
+        if random.random() < pause_chance:
             pause_timer  = random.randint(12, 35)
-            target_speed = min(dynamic_base_step * 1.4, dynamic_max_step)
+            target_speed = dynamic_base_step
             continue
 
         vx = math.cos(current_angle) * current_speed
@@ -239,14 +224,12 @@ def compute_walk(
                     x, y = tnx, tny
                     current_angle = ta
                     target_angle  = ta + random.uniform(-0.4, 0.4)
-                    burst_timer   = 0
                     current_speed = dynamic_base_step
                     escaped = True
                     break
             if not escaped:
                 current_angle = random.uniform(0, 2 * math.pi)
                 target_angle  = current_angle
-                burst_timer   = 0
                 current_speed = dynamic_base_step
 
     return frames

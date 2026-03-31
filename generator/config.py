@@ -53,6 +53,9 @@ PEST_PARAMS = {
         "surface_stickiness": 0.95,
         # Per-frame pause trigger probability.
         "pause_chance": 0.12,
+        # Stretch mouse sprite width by 10% while keeping height unchanged.
+        "sprite_width_scale": 1.10,
+        "sprite_height_scale": 1.00,
         "max_turn_deg": 3.0,
     },
     "rat": {
@@ -73,6 +76,10 @@ PEST_PARAMS = {
         },
         # Per-frame pause trigger probability.
         "pause_chance": 0.20,
+        # Rat sprite axis scaling relative to original baseline.
+        # length (forward axis) = 0.8x, width (cross axis) = 0.7x.
+        "sprite_width_scale": 0.80,
+        "sprite_height_scale": 0.70,
         "surface_stickiness": 0.99,
         "max_turn_deg": 2.0,
     },
@@ -93,7 +100,9 @@ PEST_PARAMS = {
             "down": 0.22,
         },
         # Per-frame pause trigger probability.
-        "pause_chance": 0.05,
+        "pause_chance": 0.09,
+        # Brighten cockroach movement masks by 10% (clipped to [0,1]).
+        "movement_mask_brightness": 1.10,
         "surface_stickiness": 0.75,
         "max_turn_deg": 8.0,
     },
@@ -102,7 +111,7 @@ PEST_PARAMS = {
 # Real physical body lengths (metres) used for depth-based scale calculation.
 # Body length = longest horizontal dimension of the animal.
 PEST_REAL_SIZES_M = {
-    "mouse": 0.084,      # +5% vs baseline (~8.4 cm body, excluding tail)
+    "mouse": 0.088,      # +10% vs baseline (~8.8 cm body, excluding tail)
     "rat": 0.18,         # -10% vs baseline (~18 cm body, excluding tail)
     "cockroach": 0.04,   # ~4 cm body
 }

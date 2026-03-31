@@ -7,7 +7,7 @@ Falls back to a procedurally drawn PIL ellipse if no sprites are found.
 import os
 import random
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance, ImageOps
 
 from generator.config import PEST_PARAMS
 
@@ -18,8 +18,11 @@ def load_sprite(pest_type, sprites_dir):
     """Return an RGBA PIL Image for the given pest type.
 
     Resolution order:
-    1. A random PNG from sprites_dir/{pest_type}/*.png  (if any exist).
-    2. A procedurally drawn PIL ellipse matching the pest's color/shape.
+    1. For mouse: a random `sagnik_mouse_*.png` from sprites_dir/mouse/ (if any exist).
+    2. For rat: a random `sagnik_mouse_*.png` stylized into a darker brown rat (if any exist).
+    3. `default.png` from sprites_dir/{pest_type}/ (if it exists).
+    4. A random PNG from sprites_dir/{pest_type}/*.png (if any exist).
+    5. A procedurally drawn PIL ellipse matching the pest's color/shape.
 
     The returned image has mode "RGBA". The caller (compositing.py) resizes
     it to the target pixel dimensions before pasting.
@@ -39,11 +42,62 @@ def load_sprite(pest_type, sprites_dir):
             if f.lower().endswith(".png")
         ]
 
+    # Mouse should use Sagnik's sprite set rather than the local default.png override.
+    if pest_type == "mouse":
+        sagnik_mouse = _load_random_sagnik_mouse_sprite(sprites_dir)
+        if sagnik_mouse is not None:
+            return sagnik_mouse
+
+    # Rat can be synthesized from Sagnik's mouse sprite pack with
+    # a darker brown recolor.
+    if pest_type == "rat":
+        sagnik_mouse = _load_random_sagnik_mouse_sprite(sprites_dir)
+        if sagnik_mouse is not None:
+            return _stylize_rat_from_mouse_sprite(sagnik_mouse)
+
+    preferred_default = os.path.join(sprite_dir, "default.png")
+    if os.path.isfile(preferred_default):
+        return Image.open(preferred_default).convert("RGBA")
+
     if sprite_files:
-        chosen = random.choice(sprite_files)
+        chosen = random.choice(sorted(sprite_files))
         return Image.open(os.path.join(sprite_dir, chosen)).convert("RGBA")
 
     return _draw_procedural_sprite(pest_type)
+
+
+def _load_random_sagnik_mouse_sprite(sprites_dir):
+    """Return one random mouse sprite from Sagnik's set, or None if missing."""
+    mouse_dir = os.path.join(sprites_dir, "mouse")
+    if not os.path.isdir(mouse_dir):
+        return None
+
+    sagnik_mouse_files = [
+        f for f in os.listdir(mouse_dir)
+        if f.lower().endswith(".png") and f.lower().startswith("sagnik_mouse_")
+    ]
+    if not sagnik_mouse_files:
+        return None
+
+    chosen = random.choice(sorted(sagnik_mouse_files))
+    return Image.open(os.path.join(mouse_dir, chosen)).convert("RGBA")
+
+
+def _stylize_rat_from_mouse_sprite(mouse_sprite):
+    """Create a rat-like variant from a mouse sprite (dark brown recolor)."""
+    base = mouse_sprite.convert("RGBA")
+    rgb = base.convert("RGB")
+
+    # Preserve body shading while shifting to a darker brown rat palette.
+    gray = ImageOps.grayscale(rgb)
+    brown = ImageOps.colorize(gray, black="#24160f", white="#7a5036").convert("RGB")
+    brown = ImageEnhance.Brightness(brown).enhance(0.85)
+    brown = ImageEnhance.Color(brown).enhance(0.9)
+    brown = ImageEnhance.Contrast(brown).enhance(1.05)
+
+    out = brown.convert("RGBA")
+    out.putalpha(base.getchannel("A"))
+    return out
 
 
 def _draw_procedural_sprite(pest_type):

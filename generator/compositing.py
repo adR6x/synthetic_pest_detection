@@ -9,7 +9,7 @@ import math
 import os
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
 from generator.pest_animation import compute_walk
 from generator.pest_models import load_sprite
@@ -64,6 +64,8 @@ def composite_frames(
                                "focal_length_px"   – float
                                "forward_axis"      – str
                                "blender_scale"     – float (world-unit body length)
+                               "sprite_width_scale"  – optional float (default 1.0)
+                               "sprite_height_scale" – optional float (default 1.0)
                            }
         frames_dir:    Directory to write frame_XXXX.png files into.
         labels_dir:    Directory to write annotations.json into.
@@ -106,6 +108,8 @@ def composite_frames(
         max_turn_deg     = params.get("max_turn_deg", 2.0)
         stickiness       = float(params.get("surface_stickiness", 0.97))
         pause_chance     = float(params.get("pause_chance", 0.008))
+        sprite_width_scale  = float(params.get("sprite_width_scale", 1.0))
+        sprite_height_scale = float(params.get("sprite_height_scale", 1.0))
 
         walk = compute_walk(
             num_frames=num_frames,
@@ -133,7 +137,9 @@ def composite_frames(
 
         sprite   = load_sprite(pest_type, sprites_dir)
         pixel_w, pixel_h = _compute_pixel_size(
-            sprite, blender_scale, plane_width, render_width
+            sprite, blender_scale, plane_width, render_width,
+            width_scale=sprite_width_scale,
+            height_scale=sprite_height_scale,
         )
 
         pest_data.append((pest_type, sprite, walk, pixel_w, pixel_h))
@@ -208,7 +214,12 @@ def composite_frames(
 
             # PIL.rotate is counter-clockwise; atan2 is also CCW — signs match.
             angle_deg = math.degrees(angle_rad)
-            rotated   = resized.rotate(angle_deg, expand=True)
+            rotated = resized.rotate(
+                angle_deg,
+                resample=Image.BICUBIC,
+                expand=True,
+            )
+            rotated = _sharpen_rgba(rotated)
 
             paste_x = paste_cx - rotated.width  // 2
             paste_y = paste_cy - rotated.height // 2
@@ -292,15 +303,40 @@ def _world_to_pixel(wx, wy, render_width, render_height, plane_width, plane_heig
     return px, py
 
 
-def _compute_pixel_size(sprite, blender_scale, plane_width, render_width):
+def _compute_pixel_size(
+    sprite,
+    blender_scale,
+    plane_width,
+    render_width,
+    width_scale=1.0,
+    height_scale=1.0,
+):
     """Compute target pixel width and height for a sprite.
 
     blender_scale is the pest body length in world units.
-    pixel_w = blender_scale * render_width / plane_width
-    pixel_h preserves the sprite's aspect ratio.
+    pixel_w = blender_scale * render_width / plane_width.
+    pixel_h preserves the sprite's aspect ratio before optional axis scales.
     Both dimensions are clamped to at least 4 pixels.
     """
-    pixel_w = max(4, int(blender_scale * render_width / plane_width))
+    width_scale = max(0.1, float(width_scale))
+    height_scale = max(0.1, float(height_scale))
+
+    base_w = max(4, int(blender_scale * render_width / plane_width))
     sw, sh  = sprite.size
-    pixel_h = max(4, int(pixel_w * sh / max(sw, 1)))
+    base_h = max(4, int(base_w * sh / max(sw, 1)))
+    pixel_w = max(4, int(base_w * width_scale))
+    pixel_h = max(4, int(base_h * height_scale))
     return pixel_w, pixel_h
+
+
+def _sharpen_rgba(img):
+    """Sharpen RGB detail while preserving alpha edges."""
+    if img.mode != "RGBA":
+        img = img.convert("RGBA")
+    alpha = img.getchannel("A")
+    rgb = img.convert("RGB")
+    rgb = rgb.filter(ImageFilter.UnsharpMask(radius=1.0, percent=170, threshold=2))
+    rgb = ImageEnhance.Sharpness(rgb).enhance(1.15)
+    out = rgb.convert("RGBA")
+    out.putalpha(alpha)
+    return out

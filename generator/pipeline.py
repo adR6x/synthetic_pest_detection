@@ -143,6 +143,7 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         params      = pest_cfg["params"]
         spawn_probs = _resolve_spawn_probs(params.get("spawn_probs"))
         stickiness  = float(params.get("surface_stickiness", 0.97))
+        mask_brightness = float(params.get("movement_mask_brightness", 1.0))
 
         # Choose which surface group this pest spawns on (weighted random).
         groups  = groups_for_spawn
@@ -177,6 +178,7 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
             movement_prob = build_movement_mask(
                 surface_group_masks, surface_name, stickiness
             )
+            movement_prob = np.clip(movement_prob * mask_brightness, 0.0, 1.0).astype(np.float32)
             mask_filename = f"movement_mask_{pest_type}_{pest_idx}_{surface_name}.png"
             mask_path = os.path.abspath(os.path.join(frames_dir, mask_filename))
             save_movement_mask_preview(movement_prob, surface_name, mask_path)
@@ -295,6 +297,8 @@ def _assemble_video(frames_dir, video_path):
             "-framerate", str(FPS),
             "-i", pattern,
             "-c:v", "libx264",
+            "-preset", "slow",
+            "-crf", "16",
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
             video_path,
