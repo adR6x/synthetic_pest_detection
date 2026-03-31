@@ -65,15 +65,38 @@
         <p style="color:#555;">Total render time: <strong>{{ render_time }}s</strong></p>
         {% endif %}
 
+        <form action="{{ url_for('regenerate', job_id=job_id) }}" method="post" style="margin-bottom:16px;">
+            <button type="submit" class="btn">&#x21BA; Regenerate with Same Image</button>
+        </form>
+
         {% if video_url %}
         <div class="video-section">
             <h3>Animated Preview</h3>
-            <div class="player-wrapper" style="position:relative; display:inline-block;">
-                <video id="player" width="640" controls autoplay loop muted>
-                    <source src="{{ video_url }}" type="video/mp4">
-                </video>
-                <canvas id="bbox-canvas" width="640" height="480" style="position:absolute; top:0; left:0; pointer-events:none;"></canvas>
+            <div style="margin-bottom:16px;">
+                <p style="margin:0 0 8px 0;"><strong>Generated Video</strong></p>
+                <div class="player-wrapper" style="position:relative; display:inline-block;">
+                    <video id="player" width="640" controls autoplay loop muted>
+                        <source src="{{ video_url }}" type="video/mp4">
+                    </video>
+                    <canvas id="bbox-canvas" width="640" height="480" style="position:absolute; top:0; left:0; pointer-events:none;"></canvas>
+                </div>
             </div>
+            {% if pest_mask_templates %}
+            <div>
+                <p style="margin:0 0 8px 0;"><strong>Per-Pest Movement Masks</strong>
+                    <span style="font-size:12px; color:#888;">(bright = allowed area, switches surface as pest moves)</span></p>
+                <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start;">
+                    {% for pest in pest_mask_templates %}
+                    <div>
+                        <p style="margin:0 0 4px 0; font-size:13px;">{{ pest.label }}</p>
+                        <img id="mask-pest{{ pest.pest_idx }}"
+                             src="{{ pest.url_template | replace('NNNN', '0001') }}"
+                             width="310" style="display:block;" alt="{{ pest.label }} movement mask">
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
 
         {% if depth_preview_url or surface_preview_url or gravity_preview_url %}
@@ -102,20 +125,6 @@
         </div>
         {% endif %}
 
-        {% if placement_masks %}
-        <div class="video-section">
-            <h3>Per-Pest Placement Masks (Fed to Blender)</h3>
-            <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">
-                {% for mask in placement_masks %}
-                <div>
-                    <p style="margin:0 0 8px 0;"><strong>{{ mask.label }}</strong></p>
-                    <img src="{{ mask.url }}" width="320" alt="placement mask {{ mask.label }}">
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-
         <script>
             const frameNames = [
                 {% for frame in frames %}
@@ -136,24 +145,27 @@
                 "cockroach": "#ff0000",
             };
 
-            function drawBboxes(frameIdx) {
-                const canvas = document.getElementById("bbox-canvas");
-                const video = document.getElementById("player");
-                const ctx = canvas.getContext("2d");
+            const canvas = document.getElementById("bbox-canvas");
+            const ctx = canvas.getContext("2d");
 
-                canvas.width = video.clientWidth;
-                canvas.height = video.clientHeight;
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            function drawBboxes(frameIdx) {
+                // Use offsetWidth so the canvas matches the rendered video size.
+                // Fall back to renderWidth if the video hasn't laid out yet.
+                const video = document.getElementById("player");
+                const cw = video.offsetWidth  || renderWidth;
+                const ch = video.offsetHeight || renderHeight;
+                if (canvas.width !== cw)  canvas.width  = cw;
+                if (canvas.height !== ch) canvas.height = ch;
+                ctx.clearRect(0, 0, cw, ch);
 
                 const frameName = frameNames[frameIdx];
                 const anns = frameName ? labelsData[frameName] : null;
                 if (!anns || anns.length === 0) return;
 
-                const scaleX = canvas.width / renderWidth;
-                const scaleY = canvas.height / renderHeight;
+                const scaleX = cw / renderWidth;
+                const scaleY = ch / renderHeight;
 
                 for (const ann of anns) {
-                    // COCO bbox: [x, y, width, height]
                     const [x, y, w, h] = ann.bbox;
                     const sx = x * scaleX, sy = y * scaleY;
                     const sw = w * scaleX, sh = h * scaleY;
@@ -174,6 +186,21 @@
                 }
             }
 
+            // Per-pest mask URL templates, indexed by pest number.
+            const pestMaskTemplates = {
+                {% for pest in pest_mask_templates %}
+                {{ pest.pest_idx }}: "{{ pest.url_template }}",
+                {% endfor %}
+            };
+
+            function updatePestMasks(frameIdx) {
+                const frameNum = String(frameIdx + 1).padStart(4, '0');
+                for (const [idx, tmpl] of Object.entries(pestMaskTemplates)) {
+                    const img = document.getElementById("mask-pest" + idx);
+                    if (img) img.src = tmpl.replace("NNNN", frameNum);
+                }
+            }
+
             const video = document.getElementById("player");
             video.addEventListener("timeupdate", function() {
                 const frameIdx = Math.min(
@@ -181,6 +208,7 @@
                     frameNames.length - 1
                 );
                 drawBboxes(frameIdx);
+                updatePestMasks(frameIdx);
             });
         </script>
         {% endif %}

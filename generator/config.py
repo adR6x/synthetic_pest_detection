@@ -30,24 +30,44 @@ PEST_PARAMS = {
         "head_scale": (0.04, 0.035, 0.035),
         "head_offset": (0.13, 0.0, 0.01),
         "color": (0.45, 0.35, 0.25, 1.0),
-        "speed": 0.04,
-        "min_nz": 0.5,
+        # Speeds in world units/second (≈ m/s for a ~2 m wide kitchen scene).
+        # base_speed_wps: typical walking pace; max_speed_wps: sprint cap.
+        # Sources: mouse 0.25–1.25 m/s walking, up to ~3.6 m/s sprint.
+        "base_speed_wps": 0.4,
+        "max_speed_wps": 1.5,
+        # Spawn probability by surface orientation group.
+        # Groups: "up" = floors/counters (nz > 0.5), "side" = walls (nz ≈ 0),
+        #         "down" = ceilings/undersides (nz < -0.3).
+        "spawn_probs": {"up": 0.95, "side": 0.05, "down": 0.00},
+        # Probability of staying on the same surface group per movement frame.
+        "surface_stickiness": 0.97,
+        "max_turn_deg": 3.0,
     },
     "rat": {
         "body_scale": (0.18, 0.09, 0.07),
         "head_scale": (0.06, 0.05, 0.05),
         "head_offset": (0.19, 0.0, 0.015),
         "color": (0.35, 0.25, 0.18, 1.0),
-        "speed": 0.03,
-        "min_nz": 0.8,
+        # Sources: rat 0.3–0.8 m/s walking, max ~2.7 m/s.
+        "base_speed_wps": 0.3,
+        "max_speed_wps": 1.0,
+        # Rat is heavy — almost exclusively floor/counter bound.
+        "spawn_probs": {"up": 0.99, "side": 0.01, "down": 0.00},
+        "surface_stickiness": 0.99,
+        "max_turn_deg": 2.0,
     },
     "cockroach": {
         "body_scale": (0.08, 0.04, 0.015),
         "head_scale": None,  # no separate head
         "head_offset": None,
         "color": (0.25, 0.12, 0.05, 1.0),
-        "speed": 0.06,
-        "min_nz": 0.1,
+        # Sources: cockroach ~0.05–0.15 m/s walking, max ~1.5 m/s (American cockroach).
+        "base_speed_wps": 0.6,
+        "max_speed_wps": 1.5,
+        # Cockroaches can walk on any surface — well-known wall/ceiling climbers.
+        "spawn_probs": {"up": 0.40, "side": 0.38, "down": 0.22},
+        "surface_stickiness": 0.88,
+        "max_turn_deg": 8.0,
     },
 }
 

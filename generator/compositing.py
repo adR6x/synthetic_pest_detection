@@ -8,7 +8,8 @@ from pest_models.load_sprite(). Writes frame PNGs and a COCO annotations.json.
 import math
 import os
 
-from PIL import Image
+import numpy as np
+from PIL import Image, ImageDraw
 
 from generator.pest_animation import compute_walk
 from generator.pest_models import load_sprite
@@ -35,6 +36,10 @@ def composite_frames(
     render_height=RENDER_HEIGHT,
     plane_width=PLANE_WIDTH,
     plane_height=PLANE_HEIGHT,
+    depth_map=None,
+    fps=10,
+    surface_group_masks=None,
+    normals=None,
 ):
     """Render all frames by compositing pest sprites onto the background image.
 
@@ -51,11 +56,13 @@ def composite_frames(
         pest_configs:  List of pest config dicts from pipeline.py. Each must have:
                            "type"                – pest type string
                            "start_position"      – [wx, wy] world units
-                           "placement_mask_path" – path to placement mask PNG
+                           "placement_mask_path" – path to movement mask PNG
                            "params": {
-                               "speed"           – float
-                               "forward_axis"    – str
-                               "blender_scale"   – float (world-unit body length)
+                               "speed"             – float (wu/frame)
+                               "max_speed_wps"     – float (wu/s, for depth-aware cap)
+                               "focal_length_px"   – float
+                               "forward_axis"      – str
+                               "blender_scale"     – float (world-unit body length)
                            }
         frames_dir:    Directory to write frame_XXXX.png files into.
         labels_dir:    Directory to write annotations.json into.
@@ -65,6 +72,8 @@ def composite_frames(
         render_height: Output frame height in pixels.
         plane_width:   World-space width of the scene.
         plane_height:  World-space height of the scene.
+        depth_map:     Optional (H, W) float32 depth array in metres.
+        fps:           Frames per second (used for depth-aware speed cap).
     """
     os.makedirs(frames_dir, exist_ok=True)
     os.makedirs(labels_dir, exist_ok=True)
@@ -78,9 +87,23 @@ def composite_frames(
     for pest_cfg in pest_configs:
         pest_type     = pest_cfg["type"]
         params        = pest_cfg["params"]
-        speed         = float(params.get("speed", 0.08))
-        fwd_axis      = params.get("forward_axis", "X")
-        blender_scale = float(params.get("blender_scale", 0.12))
+        speed            = float(params.get("speed", 0.08))
+        fwd_axis         = params.get("forward_axis", "X")
+        blender_scale    = float(params.get("blender_scale", 0.12))
+        max_step_world   = params.get("max_step_world")
+        if max_step_world is not None:
+            max_step_world = float(max_step_world)
+        base_speed_wps   = params.get("base_speed_wps")
+        if base_speed_wps is not None:
+            base_speed_wps = float(base_speed_wps)
+        max_speed_wps    = params.get("max_speed_wps")
+        if max_speed_wps is not None:
+            max_speed_wps = float(max_speed_wps)
+        focal_length_px  = params.get("focal_length_px")
+        if focal_length_px is not None:
+            focal_length_px = float(focal_length_px)
+        max_turn_deg     = params.get("max_turn_deg", 2.0)
+        stickiness       = float(params.get("surface_stickiness", 0.97))
 
         walk = compute_walk(
             num_frames=num_frames,
@@ -90,6 +113,18 @@ def composite_frames(
             start_position=pest_cfg.get("start_position"),
             placement_mask_path=pest_cfg.get("placement_mask_path"),
             forward_axis=fwd_axis,
+            max_step_world=max_step_world,
+            depth_map=depth_map,
+            focal_length_px=focal_length_px,
+            base_speed_wps=base_speed_wps,
+            max_speed_wps=max_speed_wps,
+            fps=fps,
+            render_width=render_width,
+            render_height=render_height,
+            max_turn_deg=max_turn_deg,
+            surface_group_masks=surface_group_masks,
+            normals=normals,
+            surface_stickiness=stickiness,
         )
 
         sprite   = load_sprite(pest_type, sprites_dir)
@@ -98,6 +133,41 @@ def composite_frames(
         )
 
         pest_data.append((pest_type, sprite, walk, pixel_w, pixel_h))
+
+    # Pre-load movement masks as numpy arrays for per-frame overlay rendering.
+    _DOT_COLORS = {"mouse": (0, 220, 0), "rat": (255, 120, 0), "cockroach": (255, 30, 30)}
+    mask_arrays = []
+    for pest_cfg in pest_configs:
+        mpath = pest_cfg.get("placement_mask_path")
+        if mpath and os.path.exists(mpath):
+            m = Image.open(mpath).convert("L").resize(
+                (render_width, render_height), Image.LANCZOS)
+            mask_arrays.append(np.array(m, dtype=np.float32) / 255.0)
+        else:
+            mask_arrays.append(np.ones((render_height, render_width), dtype=np.float32))
+
+    # Pre-compute per-pest dynamic mask arrays (one per surface group) resized to
+    # render dimensions. Used for per-frame "pest vision" mask preview.
+    _viz_dynamic_masks = []
+    for pest_cfg in pest_configs:
+        stickiness = float(pest_cfg["params"].get("surface_stickiness", 0.97))
+        if surface_group_masks is not None:
+            ow = (1.0 - stickiness) ** 2
+            dyn_viz = {}
+            for surf in ("up", "side", "down"):
+                same  = surface_group_masks[surf]
+                other = sum(
+                    surface_group_masks[g] for g in ("up", "side", "down") if g != surf
+                ) / 2.0
+                m     = same + ow * other
+                peak  = float(m.max())
+                m_norm = (m / peak if peak > 1e-6 else m).astype(np.float32)
+                m_pil  = Image.fromarray((m_norm * 255).astype(np.uint8))
+                m_pil  = m_pil.resize((render_width, render_height), Image.LANCZOS)
+                dyn_viz[surf] = np.array(m_pil, dtype=np.float32) / 255.0
+            _viz_dynamic_masks.append(dyn_viz)
+        else:
+            _viz_dynamic_masks.append(None)
 
     # Render each frame
     coco_images      = []
@@ -110,7 +180,7 @@ def composite_frames(
         frame_img = bg.copy()
 
         for pest_type, sprite, walk, pixel_w, pixel_h in pest_data:
-            wx, wy, angle_rad = walk[frame_idx]
+            wx, wy, angle_rad, _surface = walk[frame_idx]
 
             paste_cx, paste_cy = _world_to_pixel(
                 wx, wy, render_width, render_height, plane_width, plane_height
@@ -149,6 +219,31 @@ def composite_frames(
 
         frame_path = os.path.join(frames_dir, f"frame_{frame_num:04d}.png")
         frame_img.convert("RGB").save(frame_path)
+
+        # --- Per-pest dynamic "pest vision" mask preview ---
+        # Each pest gets its own preview: the movement probability mask for the
+        # surface it currently stands on, with a dot showing its position.
+        # The mask switches automatically when the pest crosses to a new surface.
+        for pest_idx, ((ptype, _sprite, pwalk, pw, ph), dyn_masks, mask_arr) in enumerate(
+            zip(pest_data, _viz_dynamic_masks, mask_arrays)
+        ):
+            wx, wy, _, surface = pwalk[frame_idx]
+            active_viz = dyn_masks.get(surface, mask_arr) if dyn_masks is not None else mask_arr
+            gray_u8 = (np.clip(active_viz, 0.0, 1.0) * 255).astype(np.uint8)
+            pest_mask_img = Image.fromarray(
+                np.stack([gray_u8, gray_u8, gray_u8], axis=-1), mode="RGB"
+            )
+            draw = ImageDraw.Draw(pest_mask_img)
+            pcx, pcy = _world_to_pixel(
+                wx, wy, render_width, render_height, plane_width, plane_height
+            )
+            r     = max(pw, ph) // 2 + 6
+            color = _DOT_COLORS.get(ptype, (255, 255, 0))
+            draw.ellipse([pcx - r, pcy - r, pcx + r, pcy + r], outline=color, width=3)
+            draw.ellipse([pcx - 5, pcy - 5, pcx + 5, pcy + 5], fill=color)
+            pest_mask_img.save(
+                os.path.join(frames_dir, f"mask_preview_pest{pest_idx}_{ptype}_{frame_num:04d}.png")
+            )
 
         coco_images.append({
             "id":        frame_num,

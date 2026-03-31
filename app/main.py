@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -52,6 +53,8 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "webp"}
 
 # Stores total render time (seconds) keyed by job_id
 _render_times = {}
+# Stores the source image path used for each job so regeneration doesn't need a re-upload
+_source_images = {}
 
 
 def _allowed_file(filename):
@@ -88,6 +91,7 @@ def upload():
             videos_root=VIDEOS_DIR,
         )
         _render_times[result["job_id"]] = round(time.time() - t0, 1)
+        _source_images[result["job_id"]] = save_path
     except Exception as e:
         flash(f"Generation failed: {e}")
         return redirect(url_for("index"))
@@ -113,9 +117,25 @@ def results(job_id):
     frames = sorted(
         f for f in all_job_files if f.startswith("frame_") and f.endswith(".png")
     )
-    placement_masks = sorted(
-        f for f in all_job_files if f.startswith("placement_mask_") and f.endswith(".png")
-    )
+
+    # Build per-pest mask preview URL templates.
+    # Files are named: mask_preview_pest{i}_{pesttype}_{frame:04d}.png
+    # We scan for frame 0001 to discover which pests exist.
+    _pest_mask_re = re.compile(r"^mask_preview_(pest(\d+)_(\w+))_0001\.png$")
+    pest_mask_templates = []
+    for fname in all_job_files:
+        m = _pest_mask_re.match(fname)
+        if m:
+            base, pest_idx, pest_type = m.group(1), int(m.group(2)), m.group(3)
+            pest_mask_templates.append({
+                "pest_idx": pest_idx,
+                "label": f"{pest_type.capitalize()} #{pest_idx}",
+                "url_template": url_for(
+                    "serve_frame", job_id=job_id,
+                    filename=f"mask_preview_{base}_NNNN.png"
+                ),
+            })
+    pest_mask_templates.sort(key=lambda t: t["pest_idx"])
 
     # Load COCO annotations.json and reorganise by filename for the frontend
     coco_data = {}
@@ -160,19 +180,7 @@ def results(job_id):
             if os.path.exists(gravity_preview_path)
             else None
         ),
-        probability_preview_url=(
-            url_for("serve_frame", job_id=job_id, filename="probability_preview.jpg")
-            if os.path.exists(probability_preview_path)
-            else None
-        ),
-        placement_masks=[
-            {
-                "filename": fname,
-                "url": url_for("serve_frame", job_id=job_id, filename=fname),
-                "label": fname.replace("placement_mask_", "").replace(".png", ""),
-            }
-            for fname in placement_masks
-        ],
+        pest_mask_templates=pest_mask_templates,
         frames=frames,
         labels_json=json.dumps(labels_by_frame),
         categories_json=json.dumps(categories_by_id),
@@ -180,6 +188,30 @@ def results(job_id):
         render_height=render_height,
         render_time=_render_times.get(job_id),
     )
+
+
+@app.route("/regenerate/<job_id>", methods=["POST"])
+def regenerate(job_id):
+    image_path = _source_images.get(job_id)
+    if not image_path or not os.path.exists(image_path):
+        flash("Source image no longer available — please upload again.")
+        return redirect(url_for("index"))
+
+    try:
+        t0 = time.time()
+        result = generate_video(
+            image_path,
+            frames_root=FRAMES_DIR,
+            labels_root=LABELS_DIR,
+            videos_root=VIDEOS_DIR,
+        )
+        _render_times[result["job_id"]] = round(time.time() - t0, 1)
+        _source_images[result["job_id"]] = image_path
+    except Exception as e:
+        flash(f"Regeneration failed: {e}")
+        return redirect(url_for("results", job_id=job_id))
+
+    return redirect(url_for("results", job_id=result["job_id"]))
 
 
 @app.route("/outputs/videos/<job_id>.mp4")

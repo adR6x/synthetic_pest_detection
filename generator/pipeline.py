@@ -34,13 +34,14 @@ from concurrent.futures import ThreadPoolExecutor
 from generator.compositing import composite_frames
 
 from generator.depth_estimator import (
-    build_surface_probability_map,
+    build_movement_mask,
+    build_surface_group_masks,
     compute_inference_strategy,
     estimate_gravity,
     estimate_metric3d,
     save_depth_preview,
     save_gravity_preview,
-    save_mask_preview,
+    save_movement_mask_preview,
     save_surface_preview,
     sample_pest_positions_from_probability,
 )
@@ -80,6 +81,14 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         for key in ["body_scale", "head_scale", "head_offset", "color"]:
             if params[key] is not None:
                 params[key] = list(params[key])
+        # Convert world-units/second speeds to per-frame world units using FPS.
+        # This ensures max speed is physically grounded regardless of frame rate.
+        base_speed_wps = float(params.pop("base_speed_wps", 0.1))
+        max_speed_wps  = float(params.pop("max_speed_wps",  1.0))
+        params["base_speed_wps"] = base_speed_wps
+        params["max_speed_wps"]  = max_speed_wps
+        params["speed"]          = base_speed_wps / FPS
+        params["max_step_world"] = max_speed_wps / FPS
         pest_configs.append({"type": pest_type, "params": params})
 
     # Depth-aware placement — Metric3D v2 yields depth + normals in one pass.
@@ -109,37 +118,41 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
     print(f"Gravity estimate: up={gravity_result['gravity_cam'].tolist()}  "
           f"conf={gravity_result['confidence']:.2f}")
 
-    mask_path_cache = {}
-    mask_cache = {}
-    for pest_cfg in pest_configs:
-        pest_type = pest_cfg["type"]
-        min_nz = float(pest_cfg["params"].get("min_nz", 0.8))
-        mask_key = (pest_type, min_nz)
+    # Build the three surface-group probability maps once (shared across all pests).
+    surface_group_masks = build_surface_group_masks(predicted_normals)
 
-        if mask_key not in mask_cache:
-            placement_prob = build_surface_probability_map(predicted_normals, min_nz)
-            mask_cache[mask_key] = placement_prob
-            threshold_tag = str(min_nz).replace(".", "p")
-            mask_path = os.path.join(
-                frames_dir, f"placement_mask_{pest_type}_{threshold_tag}.png"
-            )
-            save_mask_preview(placement_prob, mask_path)
-            mask_path_cache[mask_key] = os.path.abspath(mask_path)
+    for pest_idx, pest_cfg in enumerate(pest_configs):
+        pest_type   = pest_cfg["type"]
+        params      = pest_cfg["params"]
+        spawn_probs = params.get("spawn_probs", {"up": 0.78, "side": 0.20, "down": 0.02})
+        stickiness  = float(params.get("surface_stickiness", 0.97))
 
+        # Choose which surface group this pest spawns on (weighted random).
+        groups  = ["up", "side", "down"]
+        weights = [spawn_probs.get(g, 0.0) for g in groups]
+        total_w = sum(weights)
+        if total_w <= 0:
+            weights = [1.0, 0.0, 0.0]
+        spawn_surface = random.choices(groups, weights=weights)[0]
+
+        # Sample start position from the chosen surface group's probability map.
         start_position = sample_pest_positions_from_probability(
-            mask_cache[mask_key],
+            surface_group_masks[spawn_surface],
             n=1,
             plane_width=PLANE_WIDTH,
             plane_height=PLANE_HEIGHT,
         )[0]
-        pest_cfg["start_position"] = [float(start_position[0]), float(start_position[1])]
-        pest_cfg["placement_mask_path"] = mask_path_cache[mask_key]
 
-        # Depth-based scale: compute how large the pest should appear in Blender
-        # so it matches the real physical size at the estimated scene depth.
-        #
-        # Apparent pixel width  = real_size_m * fx / depth_m
-        # Blender world units   = apparent_pixels / (RENDER_WIDTH / PLANE_WIDTH)
+        # Build blended movement mask: high weight on spawn surface, low on others.
+        movement_prob = build_movement_mask(surface_group_masks, spawn_surface, stickiness)
+        mask_filename = f"movement_mask_{pest_type}_{pest_idx}.png"
+        mask_path     = os.path.abspath(os.path.join(frames_dir, mask_filename))
+        save_movement_mask_preview(movement_prob, spawn_surface, mask_path)
+
+        pest_cfg["start_position"]    = [float(start_position[0]), float(start_position[1])]
+        pest_cfg["placement_mask_path"] = mask_path
+
+        # Depth-based scale: apparent pixel width = real_size_m * fx / depth_m
         # => blender_scale = real_size_m * fx * PLANE_WIDTH / (depth_m * RENDER_WIDTH)
         wx, wy = start_position
         px = int(round((wx / PLANE_WIDTH + 0.5) * (img_w - 1)))
@@ -148,17 +161,18 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         py = max(0, min(img_h - 1, py))
         depth_val = float(depth_map[py, px])
 
-        real_size = PEST_REAL_SIZES_M[pest_type]
+        real_size      = PEST_REAL_SIZES_M[pest_type]
         default_body_x = PEST_PARAMS[pest_type]["body_scale"][0]
         if depth_val > 0.1:
             raw_scale = real_size * focal_length_px * PLANE_WIDTH / (depth_val * RENDER_WIDTH)
-            # Clamp to [0.4×, 3×] of the procedural default to avoid degenerate sizes
             blender_scale = float(max(default_body_x * 0.4, min(default_body_x * 3.0, raw_scale)))
         else:
-            blender_scale = default_body_x  # fallback if depth is unreliable
+            blender_scale = default_body_x
 
-        pest_cfg["params"]["blender_scale"] = blender_scale
-        pest_cfg["params"]["forward_axis"] = PEST_FORWARD_AXIS.get(pest_type, "X")
+        params["blender_scale"]  = blender_scale
+        params["forward_axis"]   = PEST_FORWARD_AXIS.get(pest_type, "X")
+        # Pass depth info through for per-frame depth-aware speed cap in compute_walk.
+        params["focal_length_px"] = float(focal_length_px)
 
     # Composite pest sprites onto background image
     print(f"Running 2D compositing for job {job_id}...")
@@ -174,6 +188,10 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         render_height=RENDER_HEIGHT,
         plane_width=PLANE_WIDTH,
         plane_height=PLANE_HEIGHT,
+        depth_map=depth_map,
+        fps=FPS,
+        surface_group_masks=surface_group_masks,
+        normals=predicted_normals,
     )
     print(f"Compositing finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
 

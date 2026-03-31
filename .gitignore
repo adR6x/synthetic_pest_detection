@@ -4,6 +4,15 @@
 # Outputs
 outputs/
 
+# Kitchen image downloads (keep scripts, ignore binaries)
+generator/kitchen_img/*.jpg
+generator/kitchen_img/*.jpeg
+generator/kitchen_img/*.png
+generator/kitchen_img/*.webp
+generator/kitchen_img/*.bmp
+generator/kitchen_img/*.tif
+generator/kitchen_img/*.tiff
+
 # Local curated/generated 3D assets (never track binaries)
 generator/models/**
 !generator/models/**/

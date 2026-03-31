@@ -356,6 +356,138 @@ def _normal_coherence_map(normals):
     return c.astype(np.float32)
 
 
+def build_surface_group_masks(normals):
+    """Build up/sideways/down surface probability maps from predicted normals.
+
+    Uses the estimated gravity vector (camera-space world-up direction) to
+    project each pixel's normal onto the true vertical axis.  This makes
+    surface classification correct regardless of camera tilt — a wall is
+    always "side-facing" even if the camera is looking slightly up or down.
+
+    Classification is based on dot(normal, gravity_cam):
+      - up:   dot >  0.5   → floor/counters   (normal aligned with world up)
+      - down: dot < -0.3   → ceiling/underside (normal opposes world up)
+      - side: |dot| < 0.35 → walls/cabinets   (normal perpendicular to gravity)
+
+    Each map is coherence-weighted so noisy edge regions are suppressed.
+
+    Args:
+        normals:     (H, W, 3) float32 camera-space unit normals from Metric3D.
+        gravity_cam: (3,) unit vector pointing **up** in camera space,
+                     as returned by estimate_gravity()["gravity_cam"].
+
+    Returns:
+        dict with keys "up", "side", "down", each a (H, W) float32 array [0..1].
+    """
+    normals = np.array(normals, dtype=np.float32)
+    normals = np.nan_to_num(normals, nan=0.0, posinf=0.0, neginf=0.0)
+    mag = np.linalg.norm(normals, axis=-1, keepdims=True)
+    mag = np.clip(mag, 1e-8, None)
+    normals = normals / mag
+
+    # Use the Y component (ny) of camera-space normals as the vertical discriminant.
+    #
+    # Metric3D stores normals with Y pointing DOWN in image space (OpenCV convention),
+    # confirmed by the surface-normal colour preview:
+    #   floor (world-up)  → ny ≈ -1  → G channel ≈ 0   → purple  ✓
+    #   wall  (leftward)  → nx ≈ -1  → R channel ≈ 0   → cyan    ✓
+    #   wall  (rightward) → nx ≈ +1  → R channel ≈ 255 → pink    ✓
+    #
+    # Classification (all based on ny, independent of camera tilt):
+    #   up:   ny < -0.5   → normal points world-up   (floor / counter / shelf)
+    #   down: ny >  0.3   → normal points world-down (ceiling / underside)
+    #   side: |ny| < 0.35 → normal horizontal        (wall / cabinet face)
+    ny     = normals[:, :, 1]          # camera Y = image-down = world-up when negative
+    abs_ny = np.abs(ny)
+    coherence = _normal_coherence_map(normals)
+
+    def _sig(x, center, steepness=10.0):
+        logits = np.clip(steepness * (x - center), -30.0, 30.0)
+        return 1.0 / (1.0 + np.exp(-logits))
+
+    # Up-facing: ny strongly negative (normal aligns with world up = camera -Y).
+    up   = (_sig(-ny, center=0.5) * coherence).astype(np.float32)
+
+    # Down-facing: ny strongly positive (normal opposes world up).
+    down = (_sig(ny,  center=0.3) * coherence).astype(np.float32)
+
+    # Side-facing: |ny| near zero — positively detected, not a residual.
+    # Perfect wall → |ny|≈0 → scores ~97%.  Floor → |ny|≈1 → scores <1%.
+    side = (_sig(0.35 - abs_ny, center=0.0) * coherence).astype(np.float32)
+
+    return {"up": up, "side": side, "down": down}
+
+
+def classify_surface_group_at_pixel(normals, py, px):
+    """Return 'up', 'side', or 'down' for the dominant surface at pixel (py, px)."""
+    ny = float(normals[py, px, 1])
+    if np.isnan(ny):
+        ny = 0.0
+    if ny < -0.5:
+        return "up"
+    if ny > 0.3:
+        return "down"
+    return "side"
+
+
+def build_movement_mask(surface_group_masks, spawn_surface, stickiness):
+    """Build a blended per-pest movement probability mask.
+
+    Pixels belonging to the pest's spawn surface group receive weight
+    proportional to `stickiness`; pixels of other groups get the residual
+    weight split evenly.  The result is normalised so the maximum value is 1.
+
+    Args:
+        surface_group_masks: dict returned by build_surface_group_masks().
+        spawn_surface:       "up", "side", or "down".
+        stickiness:          float in [0, 1] — probability of staying on
+                             the same surface group per frame.
+
+    Returns:
+        (H, W) float32 movement probability map in [0..1].
+    """
+    same  = surface_group_masks[spawn_surface]
+    other_groups = [g for g in ("up", "side", "down") if g != spawn_surface]
+    other = sum(surface_group_masks[g] for g in other_groups) / max(len(other_groups), 1)
+
+    # Use (1-stickiness)^2 so non-spawn surfaces are suppressed quadratically.
+    # E.g. rat (0.99): other_weight=0.0001 → wall pixels get < 0.1% probability.
+    # E.g. cockroach (0.88): other_weight=0.0144 → still visits other surfaces.
+    other_weight = (1.0 - stickiness) ** 2
+    mask = same + other_weight * other
+    peak = float(mask.max())
+    if peak > 1e-6:
+        mask = mask / peak
+    return np.clip(mask, 0.0, 1.0).astype(np.float32)
+
+
+def save_movement_mask_preview(movement_mask, spawn_surface, output_path):
+    """Save the movement probability mask as a grayscale PNG plus a colorized preview.
+
+    The grayscale PNG at *output_path* is what compute_walk loads (values 0-255
+    map directly to probabilities 0-1 via PIL .convert("L")).
+
+    A second file with the same name but a ``_color`` suffix is saved for the
+    web app.  It uses a red→yellow→green colormap: value 0 → red, 0.5 → yellow,
+    1 → green, matching the requested display scale.
+    """
+    arr = np.clip(movement_mask, 0.0, 1.0)
+
+    # Grayscale PNG for compute_walk (must remain untouched)
+    gray = (arr * 255.0).astype(np.uint8)
+    Image.fromarray(gray, mode="L").save(output_path)
+
+    # Red-yellow-green colorized preview for the app
+    # R: 1 at val=0, stays 1 to val=0.5, then falls to 0 at val=1
+    # G: 0 at val=0, rises to 1 at val=0.5, stays 1 to val=1
+    r_ch = np.clip(2.0 * (1.0 - arr), 0.0, 1.0)
+    g_ch = np.clip(2.0 * arr, 0.0, 1.0)
+    b_ch = np.zeros_like(arr)
+    color_arr = (np.stack([r_ch, g_ch, b_ch], axis=-1) * 255.0).astype(np.uint8)
+    color_path = output_path.replace(".png", "_color.png")
+    Image.fromarray(color_arr, mode="RGB").save(color_path)
+
+
 def sample_pest_positions_from_probability(probability_map, n, plane_width, plane_height):
     """Sample n starting positions from a probability map via weighted pixel sampling."""
     prob = np.array(probability_map, dtype=np.float32)
