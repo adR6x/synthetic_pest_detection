@@ -11,8 +11,9 @@
         <h1>Synthetic Pest Video Generator</h1>
 
         <div class="tabs">
-            <a class="tab {% if active_tab != 'curator' %}active{% endif %}" href="{{ url_for('index') }}">Generator</a>
+            <a class="tab {% if active_tab == 'generate' %}active{% endif %}" href="{{ url_for('index') }}">Generator</a>
             <a class="tab {% if active_tab == 'curator' %}active{% endif %}" href="{{ url_for('curator') }}">Kitchen Curator</a>
+            <a class="tab {% if active_tab == 'kitchen_generator' %}active{% endif %}" href="{{ url_for('kitchen_generator') }}">Kitchen Generator</a>
         </div>
 
         {% with messages = get_flashed_messages() %}
@@ -25,12 +26,28 @@
         {% endif %}
         {% endwith %}
 
+        {# ================================================================== #}
+        {# KITCHEN CURATOR TAB                                                #}
+        {# ================================================================== #}
         {% if active_tab == 'curator' %}
-        <p class="subtitle">Review kitchen images in <code>generator/kitchen_img</code>. Keep or delete each one.</p>
+        <p class="subtitle">Review downloaded kitchen images. Keep moves them to <code>curated_img/</code>; Delete removes them permanently.</p>
+
+        <div class="curator-toolbar">
+            {% if download_running %}
+            <p class="download-status running">Download in progress… refresh the page to check for new images.</p>
+            {% elif download_message %}
+            <p class="download-status">{{ download_message }}</p>
+            {% endif %}
+            <form action="{{ url_for('download_more') }}" method="post" style="display:inline;">
+                <button type="submit" class="btn btn-secondary" {% if download_running %}disabled{% endif %}>
+                    &#x2B07; Download More Images
+                </button>
+            </form>
+        </div>
 
         {% if curator_total and curator_current %}
         <div class="curator-panel">
-            <p class="curator-meta">Image {{ curator_idx + 1 }} of {{ curator_total }}</p>
+            <p class="curator-meta">Image {{ curator_idx + 1 }} of {{ curator_total }} (uncurated)</p>
             <p class="curator-filename">{{ curator_current }}</p>
             <div class="curator-image-frame">
                 <img
@@ -62,15 +79,17 @@
             <form action="{{ url_for('curator_action') }}" method="post" class="curator-actions">
                 <input type="hidden" name="filename" value="{{ curator_current }}">
                 <input type="hidden" name="idx" value="{{ curator_idx }}">
-                <button type="submit" name="action" value="keep" class="btn">Keep & Next</button>
+                <button type="submit" name="action" value="keep" class="btn btn-success">
+                    &#x2713; Keep &amp; Next
+                </button>
                 <button
                     type="submit"
                     name="action"
                     value="delete"
                     class="btn btn-danger"
-                    onclick="return confirm('Delete this image? It will also be marked as seen and never re-downloaded.')"
+                    onclick="return confirm('Delete this image? It will be marked as seen and never re-downloaded.')"
                 >
-                    Delete
+                    &#x2715; Delete
                 </button>
             </form>
 
@@ -79,20 +98,162 @@
                     class="btn btn-muted {% if curator_idx <= 0 %}disabled-link{% endif %}"
                     href="{{ url_for('curator', idx=curator_idx - 1) if curator_idx > 0 else '#' }}"
                 >
-                    Prev
+                    &larr; Prev
                 </a>
                 <a
                     class="btn btn-muted {% if curator_idx >= curator_total - 1 %}disabled-link{% endif %}"
                     href="{{ url_for('curator', idx=curator_idx + 1) if curator_idx < curator_total - 1 else '#' }}"
                 >
-                    Next
+                    Next &rarr;
                 </a>
             </div>
         </div>
         {% else %}
-        <p class="subtitle">No kitchen images found yet. Run the downloader first.</p>
+        <div class="curator-empty">
+            <p class="subtitle">No uncurated kitchen images found.</p>
+            <p style="color:#666; margin-bottom:1rem;">Use the button above to download images from Places365, or switch to the <a href="{{ url_for('kitchen_generator') }}">Kitchen Generator</a> tab to create images with Gemini.</p>
+        </div>
         {% endif %}
 
+        {# ================================================================== #}
+        {# KITCHEN GENERATOR TAB (Gemini)                                     #}
+        {# ================================================================== #}
+        {% elif active_tab == 'kitchen_generator' %}
+        <p class="subtitle">Generate photorealistic kitchen images using Google Gemini. Kept images are saved to <code>curated_img/</code>.</p>
+
+        {# --- API Key status widget --- #}
+        <div class="apikey-widget">
+            {% if gemini_key.set %}
+            <div class="apikey-status apikey-ok">
+                <span>&#x2713; Gemini API key set &nbsp;<code>{{ gemini_key.masked }}</code></span>
+                <button class="btn-link" onclick="document.getElementById('apikey-form').style.display=document.getElementById('apikey-form').style.display==='none'?'flex':'none'">Change</button>
+            </div>
+            {% else %}
+            <div class="apikey-status apikey-missing">
+                <span>&#x26A0; No Gemini API key — generation is disabled.</span>
+                <button class="btn-link" onclick="document.getElementById('apikey-form').style.display='flex'">Add key</button>
+            </div>
+            {% endif %}
+            <form id="apikey-form" action="{{ url_for('kitchen_generator_set_api_key') }}" method="post"
+                  class="apikey-form" style="display:{% if not gemini_key.set %}flex{% else %}none{% endif %};">
+                <input type="password" name="api_key" class="apikey-input" placeholder="AIza..." autocomplete="off" required>
+                <button type="submit" class="btn">Save</button>
+                <button type="button" class="btn btn-muted" onclick="this.closest('form').style.display='none'">Cancel</button>
+            </form>
+        </div>
+
+        <div class="kgen-panel">
+            <div class="kgen-form-row">
+                <div class="kgen-prompt-group">
+                    <label for="kgen-template" class="kgen-label">Prompt template</label>
+                    <select id="kgen-template" class="kgen-select">
+                        <option value="">— custom prompt below —</option>
+                        {% for tmpl in prompt_templates %}
+                        <option value="{{ tmpl }}">{{ tmpl[:80] }}{% if tmpl|length > 80 %}…{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="kgen-prompt-group">
+                    <label for="kgen-custom" class="kgen-label">Custom prompt (or edit template above)</label>
+                    <textarea id="kgen-custom" class="kgen-textarea" rows="2" placeholder="e.g. Large commercial kitchen, white tile floor, overhead fluorescent lights..."></textarea>
+                </div>
+                <button id="kgen-btn" class="btn" onclick="kgenGenerate()">&#x2728; Generate</button>
+            </div>
+            <p id="kgen-status" class="kgen-status" style="display:none;"></p>
+        </div>
+
+        <div id="kgen-result" style="display:none;">
+            <hr>
+            <div class="kgen-result-grid">
+                <div class="kgen-result-card">
+                    <p><strong>Generated Kitchen</strong></p>
+                    <img id="kgen-img" src="" alt="Generated kitchen" class="kgen-preview-img">
+                </div>
+                <div id="kgen-depth-card" class="kgen-result-card" style="display:none;">
+                    <p><strong>Predicted Depth</strong></p>
+                    <img id="kgen-depth" src="" alt="Depth map" class="kgen-preview-img">
+                </div>
+                <div id="kgen-surface-card" class="kgen-result-card" style="display:none;">
+                    <p><strong>Surface Normals</strong></p>
+                    <img id="kgen-surface" src="" alt="Surface normals" class="kgen-preview-img">
+                </div>
+            </div>
+
+            <form id="kgen-save-form" action="{{ url_for('kitchen_generator_save') }}" method="post" style="display:inline;">
+                <input type="hidden" id="kgen-temp-filename" name="temp_filename" value="">
+                <button type="submit" class="btn btn-success">&#x2713; Keep — Save to curated_img/</button>
+            </form>
+            <form id="kgen-discard-form" action="{{ url_for('kitchen_generator_discard') }}" method="post" style="display:inline; margin-left:0.5rem;">
+                <input type="hidden" id="kgen-discard-filename" name="temp_filename" value="">
+                <button type="submit" class="btn btn-danger" onclick="return confirm('Discard this generated image?')">&#x2715; Discard</button>
+            </form>
+        </div>
+
+        <script>
+        document.getElementById("kgen-template").addEventListener("change", function() {
+            const val = this.value;
+            if (val) {
+                document.getElementById("kgen-custom").value = val;
+            }
+        });
+
+        function kgenGenerate() {
+            const prompt = document.getElementById("kgen-custom").value.trim();
+            if (!prompt) {
+                alert("Please enter a prompt.");
+                return;
+            }
+            const btn = document.getElementById("kgen-btn");
+            const status = document.getElementById("kgen-status");
+            const result = document.getElementById("kgen-result");
+
+            btn.disabled = true;
+            status.style.display = "block";
+            status.textContent = "Generating image with Gemini… this may take 15-30 seconds.";
+            result.style.display = "none";
+
+            fetch("{{ url_for('kitchen_generator_generate') }}", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({prompt: prompt}),
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                if (data.error) {
+                    status.textContent = "Error: " + data.error;
+                    return;
+                }
+                status.style.display = "none";
+                document.getElementById("kgen-img").src = data.image_url;
+                document.getElementById("kgen-temp-filename").value = data.temp_filename;
+                document.getElementById("kgen-discard-filename").value = data.temp_filename;
+
+                if (data.depth_url) {
+                    document.getElementById("kgen-depth").src = data.depth_url;
+                    document.getElementById("kgen-depth-card").style.display = "block";
+                } else {
+                    document.getElementById("kgen-depth-card").style.display = "none";
+                }
+                if (data.surface_url) {
+                    document.getElementById("kgen-surface").src = data.surface_url;
+                    document.getElementById("kgen-surface-card").style.display = "block";
+                } else {
+                    document.getElementById("kgen-surface-card").style.display = "none";
+                }
+
+                result.style.display = "block";
+            })
+            .catch(err => {
+                btn.disabled = false;
+                status.textContent = "Request failed: " + err;
+            });
+        }
+        </script>
+
+        {# ================================================================== #}
+        {# GENERATOR TAB (Pest Video Generation)                              #}
+        {# ================================================================== #}
         {% else %}
         <p class="subtitle">Choose from your curated kitchens, or upload a new image.</p>
 
@@ -108,7 +269,7 @@
                 <div class="curated-card">
                     <div class="curated-card-frame">
                         <img
-                            src="{{ url_for('serve_kitchen_image', filename=image_name) }}"
+                            src="{{ url_for('serve_curated_image', filename=image_name) }}"
                             alt="{{ image_name }}"
                         >
                     </div>
@@ -137,7 +298,7 @@
                 </a>
             </div>
             {% else %}
-            <p class="subtitle">No curated kitchen images found. Use the downloader and curator tab first.</p>
+            <p class="subtitle">No curated kitchen images found. Use the <a href="{{ url_for('curator') }}">Kitchen Curator</a> or <a href="{{ url_for('kitchen_generator') }}">Kitchen Generator</a> to add some.</p>
             {% endif %}
         </div>
 

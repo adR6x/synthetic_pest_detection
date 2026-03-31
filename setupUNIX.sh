@@ -54,9 +54,12 @@ else
 fi
 
 # ─── Install dependencies ─────────────────────────────────────────────────────
-info "Installing project dependencies..."
+info "Refreshing poetry.lock to match pyproject.toml..."
 cd "$(dirname "$0")"
-poetry install
+poetry lock --no-interaction
+
+info "Installing project dependencies..."
+poetry install --no-interaction
 
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 # mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab

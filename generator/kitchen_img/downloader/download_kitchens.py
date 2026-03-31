@@ -7,6 +7,9 @@ Strategy:
   4. Stream val_256.tar → save only unseen kitchen images, stop at TARGET
 
 No API key required. All data is MIT/CSAIL public.
+
+Images are saved to the parent directory (generator/kitchen_img/) as a
+staging area. Curated images are moved to curated_img/ by the web app.
 """
 
 import io
@@ -17,7 +20,8 @@ import re
 import tarfile
 import urllib.request
 
-OUT_DIR = os.path.dirname(os.path.abspath(__file__))
+# Images are saved to generator/kitchen_img/ (parent of this file's directory)
+OUT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGET = 100
 RANDOM_SEED = 42
 KITCHEN_CATEGORY = 203   # /k/kitchen in Places365-standard
@@ -45,7 +49,7 @@ def extract_places_filename(name):
 
 
 def list_local_kitchen_images():
-    """Return local kitchen image files in OUT_DIR."""
+    """Return local kitchen image files in OUT_DIR (staging area)."""
     files = []
     for name in sorted(os.listdir(OUT_DIR)):
         path = os.path.join(OUT_DIR, name)

@@ -19,6 +19,11 @@ einops = ">=0.6"
 mmengine = ">=0.7"
 imageio-ffmpeg = ">=0.4"
 huggingface-hub = ">=0.19"
+python-dotenv = ">=1.0"
+google-generativeai = ">=0.8"
+tqdm = ">=4.65"
+pycocotools = { version = ">=2.0.7", markers = "sys_platform != 'win32'" }
+pycocotools-windows = { version = ">=2.0.0.2", markers = "sys_platform == 'win32'" }
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,6 +1,11 @@
 # Claude
 .claude/
 
+# Environment / secrets (never commit)
+.env
+.env.local
+.env.*
+
 # Outputs
 outputs/
 

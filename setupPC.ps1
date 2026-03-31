@@ -96,9 +96,12 @@ if ($hasShellPlugin) {
     poetry self add poetry-plugin-shell
 }
 
-Info "Installing project dependencies..."
+Info "Refreshing poetry.lock to match pyproject.toml..."
 Set-Location -Path $PSScriptRoot
-poetry install
+poetry lock --no-interaction
+
+Info "Installing project dependencies..."
+poetry install --no-interaction
 
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 # mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab
