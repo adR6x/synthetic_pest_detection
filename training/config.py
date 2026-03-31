@@ -16,8 +16,9 @@ LABEL_MAP = {
 NUM_CLASSES = len(LABEL_MAP)
 ID_TO_LABEL = {v: k for k, v in LABEL_MAP.items()}
 
-# DETR object detection: COCO category ID → name (matches generator COCO output)
-DETR_ID_TO_LABEL = {1: "mouse", 2: "cockroach", 3: "rat"}
+# DETR object detection: COCO category ID → name
+# Must match compositing.py _CATEGORY_MAP: mouse=1, rat=2, cockroach=3
+DETR_ID_TO_LABEL = {1: "mouse", 2: "rat", 3: "cockroach"}
 DETR_LABEL_TO_ID = {v: k for k, v in DETR_ID_TO_LABEL.items()}
 DETR_NUM_CLASSES = len(DETR_ID_TO_LABEL)
 
