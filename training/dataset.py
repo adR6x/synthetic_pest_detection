@@ -9,24 +9,28 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from torchvision.datasets import CocoDetection
 
-from training.config import LABEL_MAP, INPUT_SIZE, IMAGENET_MEAN, IMAGENET_STD
+from training.config import LABEL_MAP, DETR_ID_TO_LABEL, INPUT_SIZE, IMAGENET_MEAN, IMAGENET_STD
 
 
 # ---------------------------------------------------------------------------
-# ViT dataset — reads per-frame PNG + JSON from outputs/frames/ and labels/
+# ViT dataset — reads frame PNGs + the per-job COCO annotations.json
 # ---------------------------------------------------------------------------
 
 class PestDetectionDataset(Dataset):
-    """Reads rendered frames and JSON labels from outputs/.
+    """Reads rendered frames and COCO annotations from outputs/.
+
+    The generator writes one annotations.json per job (COCO format) and
+    individual frame PNGs. This dataset pairs each frame PNG with its
+    annotations from that job's COCO file.
 
     Each sample returns:
         pixel_values: Tensor [3, 224, 224] normalized with ImageNet stats.
-        label: Integer class label (primary pest type in the frame).
-        bboxes: List of bounding boxes (stored for future detection use).
+        label: Integer class index (primary pest in the frame, or background).
+        bboxes: List of [x, y, w, h] bounding boxes for that frame.
     """
 
     def __init__(self, frames_root, labels_root):
-        self.samples = []
+        self.samples = []   # list of (frame_path, annotations_list)
         self.transform = transforms.Compose([
             transforms.Resize((INPUT_SIZE, INPUT_SIZE)),
             transforms.ToTensor(),
@@ -38,37 +42,45 @@ class PestDetectionDataset(Dataset):
 
         for job_id in sorted(os.listdir(frames_root)):
             job_frames = os.path.join(frames_root, job_id)
-            job_labels = os.path.join(labels_root, job_id)
-            if not os.path.isdir(job_frames):
+            ann_path   = os.path.join(labels_root, job_id, "annotations.json")
+
+            if not os.path.isdir(job_frames) or not os.path.exists(ann_path):
                 continue
 
+            with open(ann_path) as f:
+                coco = json.load(f)
+
+            # Build lookups from the COCO file
+            fname_to_id  = {img["file_name"]: img["id"] for img in coco.get("images", [])}
+            anns_by_image = {}
+            for ann in coco.get("annotations", []):
+                anns_by_image.setdefault(ann["image_id"], []).append(ann)
+
             for fname in sorted(os.listdir(job_frames)):
-                if not fname.endswith(".png"):
+                if not (fname.endswith(".png") and fname.startswith("frame_")):
+                    continue
+                image_id = fname_to_id.get(fname)
+                if image_id is None:
                     continue
                 frame_path = os.path.join(job_frames, fname)
-                label_name = fname.replace(".png", ".json")
-                label_path = os.path.join(job_labels, label_name)
-
-                if os.path.exists(label_path):
-                    self.samples.append((frame_path, label_path))
+                anns = anns_by_image.get(image_id, [])
+                self.samples.append((frame_path, anns))
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        frame_path, label_path = self.samples[idx]
+        frame_path, annotations = self.samples[idx]
 
         image = Image.open(frame_path).convert("RGB")
         pixel_values = self.transform(image)
 
-        with open(label_path) as f:
-            label_data = json.load(f)
-
-        annotations = label_data.get("annotations", [])
         bboxes = [a["bbox"] for a in annotations]
 
+        # Primary pest: use COCO category_id → name → ViT label index
         if annotations:
-            primary_type = annotations[0]["pest_type"]
+            cat_id = annotations[0]["category_id"]
+            primary_type = DETR_ID_TO_LABEL.get(cat_id, "background")
         else:
             primary_type = "background"
         label = LABEL_MAP.get(primary_type, 0)

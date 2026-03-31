@@ -1,6 +1,30 @@
 # Synthetic Data Generation for Pest Detection
 
-A synthetic video generator that overlays animated 2D pest sprites (mouse, rat, cockroach) onto kitchen images using depth-aware placement. It produces frame-level COCO bounding-box labels and MP4 videos for downstream training.
+Synthetic kitchen-scene video generation for pest detection (mouse, rat, cockroach), with a Flask web app for curation, generation, and dataset prep.
+
+## What The App Supports
+
+The web app has four tabs:
+
+1. `Test Video Generator`
+- Generate one synthetic video from a selected kitchen image.
+- Shows video + frame overlays + scene analysis previews.
+
+2. `Real Video Generator`
+- Batch-generate training jobs from curated kitchens.
+- Configurable: length, fps, number of videos, optional MP4 output.
+- Progress bar + live polling + 5-row paginated results.
+- Writes metadata to `outputs/generated_state.json`.
+
+3. `Kitchen Curator`
+- Review `uncurated_img/` images.
+- `Keep` moves image to `curated_img/` and assigns `kitchen_####.ext` ID.
+- `Delete` removes image and marks source as seen.
+- Supports downloading more Places365 images.
+
+4. `Kitchen Generator`
+- Generate kitchen images with Gemini API.
+- Generated images go to `uncurated_img/` first, then can be curated.
 
 ## Setup
 
@@ -20,174 +44,131 @@ poetry shell
 poetry shell
 ```
 
-## Running the App
+Setup scripts install all required Python packages from `pyproject.toml` and install the local `mmcv` compatibility stub used by Metric3D dependencies.
+
+## Run The App
 
 Inside `poetry shell`:
 
 ```bash
-flask run
+flask --app app.main run
 # Open http://localhost:5000
-# Upload a kitchen image -> generates video + labeled frames
 ```
 
-## Training the Classifier
+## Current Data Layout
+
+```text
+outputs/
+  uploads/                  # ad-hoc uploads
+  frames/{job_id}/          # rendered frames + previews
+  labels/{job_id}/          # COCO annotations.json
+  videos/{job_id}.mp4       # optional (if MP4 enabled)
+  generated_state.json      # real-batch metadata state
+
+generator/kitchen_img/
+  uncurated_img/            # downloaded or Gemini-generated, pending review
+  curated_img/              # approved kitchens, named as kitchen_####.jpg
+  download_state.json       # seen Places IDs + kitchen/source mapping
+```
+
+## State Files
+
+### `outputs/generated_state.json`
+
+Top-level keys:
+- `generated_videos`: list of generation records
+- `updated_at`
+
+Each generation record currently includes:
+- `job_id`
+- `video_id`
+- `kitchen_id` (filename in curated set, e.g. `kitchen_0016.jpg`)
+- `length_of_video_seconds`
+- `fps`
+- `mouse_count`
+- `rat_count`
+- `cockroach_count`
+- `date_time_generated`
+- `time_taken_to_generate_seconds`
+- `pest_size_multiplier`
+- `pest_generation_metadata` (per pest):
+  - `pest_index`, `pest_type`
+  - `relative_size_scale`
+  - `relative_size_image_fraction`
+  - `approx_initial_pixel_width`
+  - `initial_position_image_px`
+  - `initial_position_image_norm`
+
+### `generator/kitchen_img/download_state.json`
+
+Top-level keys:
+- `seen_places365_files`
+- `kitchen_mappings`
+
+`kitchen_mappings` maps curated `kitchen_id` to Places365 source metadata:
+- `places365_source_id`
+- `places365_link`
+- `linked_at`
+
+## Places365 Download Behavior
+
+- Downloader uses Places365 metadata (`places365_train_standard.txt` or `places365_val.txt`) to find class-203 kitchens.
+- It then streams the selected split archive tar and extracts only selected unseen kitchens.
+- `val` has 100 kitchen images total; once all are seen, curator download reports no unseen.
+- `download_state.json` prevents re-downloading images already seen/curated/deleted.
+
+## Generation Pipeline (Current)
+
+Implemented in `generator/pipeline.py`:
+
+1. Load kitchen image.
+2. Run Metric3D + gravity estimation.
+3. Build surface-aware spawn/movement masks.
+4. Sample number of pests `N` with this distribution:
+- `P(N=0)=0.25`
+- `P(N=1)=0.30`
+- Remaining 0.45 distributed exponentially over `N=2..6`.
+5. For each pest slot, sample type with:
+- cockroach `0.50`
+- mouse `0.30`
+- rat `0.20`
+6. Compute depth-aware scale and apply global multiplier `1.2x`.
+7. Composite frames + COCO labels.
+8. Optionally assemble MP4.
+
+## Training Pipeline
+
+### 1) Prepare DETR dataset
 
 ```bash
-python -m training.train
-# Trains ViT classifier on generated frames in outputs/
+python -m training.prepare_dataset \
+  --frames_root outputs/frames \
+  --labels_root outputs/labels \
+  --output_dir outputs/dataset \
+  --val_frac 0.1 --test_frac 0.1 \
+  --every_n 10
 ```
 
-## Project Structure
+Current split logic:
+- split by **job/video** (not frame)
+- default ~80/10/10 train/val/test
 
-```text
-├── app/
-│   ├── main.py               # Flask routes: upload, generate, serve results
-│   ├── templates/index.html  # Upload form, frame player, bbox overlay, previews
-│   └── static/style.css
-│
-├── generator/
-│   ├── config.py             # Render settings, pest params, paths
-│   ├── pipeline.py           # Orchestrator: depth/normal + placement + compositing + MP4 assembly
-│   ├── depth_estimator.py    # Metric3D v2 + gravity estimation + probability maps
-│   ├── compositing.py        # 2D sprite renderer + COCO bbox generation
-│   ├── pest_models.py        # Sprite loader; PNG sprites or procedural fallback
-│   ├── pest_animation.py     # Random-walk trajectory generation
-│   ├── labeler.py            # COCO JSON writer
-│   ├── sprites/
-│   │   ├── mouse/            # Optional custom RGBA PNG sprites
-│   │   ├── rat/
-│   │   └── cockroach/
-│   └── mmcv_stub/            # Minimal mmcv shim for Metric3D dependency chain
-│
-├── training/
-│   ├── config.py
-│   ├── dataset.py
-│   ├── model.py
-│   └── train.py
-│
-├── setupUNIX.sh
-├── setupPC.ps1
-├── pyproject.toml
-└── outputs/
-    ├── uploads/
-    ├── frames/{job_id}/
-    ├── videos/{job_id}.mp4
-    └── labels/{job_id}/annotations.json
+### 2) Train DETR
+
+```bash
+python -m training.train --data_dir outputs/dataset --freeze_backbone
 ```
 
-## Architecture
+### ViT mode
 
-```text
-User uploads kitchen.jpg
-  -> Flask saves to outputs/uploads/
-  -> pipeline.py:
-       1. Feed-forward inference:
-          a. Metric3D v2 (ViT-small): metric depth + surface normals
-          b. Gravity estimation via vanishing-point detection
-       2. Build per-pest placement probability map from normals
-       3. Sample pest start positions from placement map
-       4. Compute depth-aware body size in world units
-       5. composite_frames():
-          -> compute random-walk paths
-          -> load sprite (PNG from generator/sprites/* if present)
-          -> fallback to procedural shape if no sprite asset exists
-          -> resize/rotate/paste sprite per frame
-          -> emit COCO bbox annotations
-       6. ffmpeg (H.264) assembly to MP4 (OpenCV mp4v fallback)
-  -> Flask serves video + frame gallery + previews
+```bash
+python -m training.train --mode vit
 ```
 
-## Sprite Workflow
+ViT mode currently trains directly from `outputs/frames` + `outputs/labels` without a dedicated train/val/test split step.
 
-By default, sprite folders are empty and the pipeline uses procedural sprites generated from `PEST_PARAMS`.
+## Notes
 
-### Default fallback behavior
-
-- Sprite lookup path: `generator/sprites/{pest_type}/*.png`
-- If none found, the renderer draws a procedural top-down pest sprite (ellipse/body + head for mouse/rat).
-- Procedural fallback is valid for generation and training bootstrapping.
-
-### Adding custom sprites
-
-1. Create RGBA PNG(s) with transparent background.
-2. Drop files into:
-   - `generator/sprites/mouse/`
-   - `generator/sprites/rat/`
-   - `generator/sprites/cockroach/`
-3. Re-run generation. A random sprite per pest type is selected per sample.
-
-Notes:
-- Sprite forward direction is assumed to be +X (head pointing right) unless you change `PEST_FORWARD_AXIS`.
-- Size is depth-aware; sprite pixel width derives from estimated world size and scene scale.
-
-## Depth-Based Size Scaling
-
-The pipeline computes a depth-aware world-size term per pest:
-
-```text
-scale = real_body_length_m * fx * PLANE_WIDTH / (depth_m * RENDER_WIDTH)
-```
-
-Then compositing maps that world size to pixel width:
-
-```text
-pixel_w = scale * RENDER_WIDTH / PLANE_WIDTH
-```
-
-This keeps pests larger when closer and smaller when farther, while retaining stable class-specific physical priors.
-
-## Annotation Format
-
-A single COCO-format JSON is written to `outputs/labels/{job_id}/annotations.json`.
-
-```json
-{
-  "images": [
-    {"id": 1, "file_name": "frame_0001.png", "width": 640, "height": 480}
-  ],
-  "annotations": [
-    {
-      "id": 1,
-      "image_id": 1,
-      "category_id": 1,
-      "bbox": [x, y, width, height],
-      "area": width * height,
-      "iscrowd": 0
-    }
-  ],
-  "categories": [
-    {"id": 1, "name": "mouse", "supercategory": "pest"},
-    {"id": 2, "name": "rat", "supercategory": "pest"},
-    {"id": 3, "name": "cockroach", "supercategory": "pest"}
-  ]
-}
-```
-
-Current bbox behavior:
-- Bboxes are axis-aligned rectangles from the pasted rotated sprite bounds (clipped to frame).
-- They are not alpha-tight pixel masks.
-- Segmentation polygons/masks and `track_id` are not currently emitted.
-
-## Models
-
-### Depth + Surface Normals — Metric3D v2 (ViT-small)
-
-Single forward pass yields geometrically consistent metric depth and normals.
-
-Paper: Hu et al., *Metric3D v2: A Versatile Monocular Geometric Foundation Model for Zero-Shot Metric Depth and Surface Normal Estimation*, IEEE TPAMI 2024.
-[arXiv:2404.15506](https://arxiv.org/abs/2404.15506)
-
-### Gravity Estimation — Classical Vanishing Point
-
-Uses OpenCV line segments + RANSAC to estimate camera up-vector for scene interpretation.
-
-## Classes (ViT Classifier)
-
-`training/config.py` mapping:
-
-| ID | Label |
-|----|-------|
-| 0  | background |
-| 1  | mouse |
-| 2  | rat |
-| 3  | cockroach |
+- `curated_img` uses `kitchen_####` naming (legacy `kitchen_img_####` is migrated automatically where applicable).
+- Real generation can run with or without MP4 assembly.
+- Null cases are supported (`N=0`) in generation.

@@ -11,7 +11,8 @@
         <h1>Synthetic Pest Video Generator</h1>
 
         <div class="tabs">
-            <a class="tab {% if active_tab == 'generate' %}active{% endif %}" href="{{ url_for('index') }}">Generator</a>
+            <a class="tab {% if active_tab == 'generate' %}active{% endif %}" href="{{ url_for('index') }}">Test Video Generator</a>
+            <a class="tab {% if active_tab == 'real_generator' %}active{% endif %}" href="{{ url_for('real_generator') }}">Real Video Generator</a>
             <a class="tab {% if active_tab == 'curator' %}active{% endif %}" href="{{ url_for('curator') }}">Kitchen Curator</a>
             <a class="tab {% if active_tab == 'kitchen_generator' %}active{% endif %}" href="{{ url_for('kitchen_generator') }}">Kitchen Generator</a>
         </div>
@@ -27,23 +28,370 @@
         {% endwith %}
 
         {# ================================================================== #}
+        {# REAL VIDEO GENERATOR TAB                                           #}
+        {# ================================================================== #}
+        {% if active_tab == 'real_generator' %}
+        <p class="subtitle">Generate training jobs from all curated kitchens. Frames + labels are always saved; MP4 output is optional.</p>
+
+        <div class="realgen-panel">
+            <form action="{{ url_for('real_generator_generate') }}" method="post" class="realgen-form">
+                <input type="hidden" name="rpage" value="{{ real_curated_page|default(1) }}">
+                <div class="realgen-row">
+                    <label class="realgen-field">
+                        <span>Length (seconds)</span>
+                        <input
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            name="length_seconds"
+                            value="{{ real_form_values.length_seconds if real_form_values else 30 }}"
+                            required
+                        >
+                    </label>
+                    <label class="realgen-field">
+                        <span>FPS</span>
+                        <input
+                            type="number"
+                            min="1"
+                            name="fps"
+                            value="{{ real_form_values.fps if real_form_values else 10 }}"
+                            required
+                        >
+                    </label>
+                    <label class="realgen-field">
+                        <span>Number of videos</span>
+                        <input
+                            type="number"
+                            min="1"
+                            name="num_videos"
+                            value="{{ real_form_values.num_videos if real_form_values else 5 }}"
+                            required
+                        >
+                    </label>
+                </div>
+                <label class="realgen-checkbox">
+                    <input
+                        type="checkbox"
+                        name="generate_mp4"
+                        value="1"
+                        {% if real_form_values and real_form_values.generate_mp4 %}checked{% endif %}
+                    >
+                    <span>Also generate MP4 files in <code>outputs/videos/</code></span>
+                </label>
+
+                {% if real_curated_total %}
+                <p class="curated-meta" style="margin-top:0.3rem;">
+                    Using all curated images: <strong>{{ real_curated_total }}</strong>.
+                    If requested videos exceed this, kitchens are sampled randomly with replacement.
+                </p>
+                {% else %}
+                <p class="subtitle" style="margin-top:0.5rem;">No curated images found yet. Add some in Kitchen Curator or upload below.</p>
+                {% endif %}
+
+                <button type="submit" class="btn" style="margin-top:0.9rem;">Generate Real Training Batch</button>
+            </form>
+        </div>
+
+        <div class="realgen-upload">
+            <h3>Upload Directly To Curated</h3>
+            <form action="{{ url_for('real_generator_upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
+                <input type="hidden" name="rpage" value="{{ real_curated_page|default(1) }}">
+                <label for="realgen-upload-input" class="file-label">Choose image(s)
+                    <input id="realgen-upload-input" type="file" name="images" accept="image/*" multiple>
+                </label>
+                <button type="submit" class="btn btn-secondary">Upload To curated_img/</button>
+            </form>
+        </div>
+
+        {% if real_batch_id %}
+        <hr>
+        <h2>Real Batch Results</h2>
+        <div
+            id="realgen-progress-panel"
+            class="realgen-progress-panel"
+            data-status-url="{{ url_for('real_generator_status', batch_id=real_batch_id) }}"
+        >
+            <p id="realgen-progress-text" class="realgen-progress-text">Initializing batch...</p>
+            <div class="realgen-progress-track">
+                <div id="realgen-progress-fill" class="realgen-progress-fill" style="width: {{ real_batch_progress_pct|default(0) }}%;"></div>
+            </div>
+        </div>
+
+        <p id="realgen-summary" class="curated-meta"></p>
+        <p id="realgen-storage-note" class="curated-meta"></p>
+        <p class="curated-meta">Generated state: <code>{{ real_batch_state_path }}</code></p>
+
+        <div id="realgen-error" class="flash" {% if not real_batch_error %}style="display:none;"{% endif %}>
+            <p id="realgen-error-text">{{ real_batch_error }}</p>
+        </div>
+
+        <div class="realgen-results-table-wrap">
+            <table class="realgen-results-table">
+                <thead>
+                    <tr>
+                        <th>job_id</th>
+                        <th>video_id</th>
+                        <th>kitchen_id</th>
+                        <th>length (s)</th>
+                        <th>fps</th>
+                        <th>mouse</th>
+                        <th>rat</th>
+                        <th>cockroach</th>
+                        <th>time (s)</th>
+                    </tr>
+                </thead>
+                <tbody id="realgen-results-body"></tbody>
+            </table>
+        </div>
+
+        <p id="realgen-results-empty" class="curated-meta" style="display:none;"></p>
+
+        <div id="realgen-pagination" class="curated-pagination" style="display:none;">
+            <button id="realgen-prev-btn" type="button" class="btn btn-muted">&larr; Prev 5</button>
+            <span id="realgen-page-label" class="curated-page-label"></span>
+            <button id="realgen-next-btn" type="button" class="btn btn-muted">Next 5 &rarr;</button>
+        </div>
+
+        <div id="realgen-failures" class="flash" style="display:none;"></div>
+
+        <script>
+        (function() {
+            const progressPanel = document.getElementById("realgen-progress-panel");
+            if (!progressPanel) return;
+
+            const statusUrl = progressPanel.dataset.statusUrl;
+            const progressText = document.getElementById("realgen-progress-text");
+            const progressFill = document.getElementById("realgen-progress-fill");
+            const summaryEl = document.getElementById("realgen-summary");
+            const storageNoteEl = document.getElementById("realgen-storage-note");
+            const tbody = document.getElementById("realgen-results-body");
+            const emptyEl = document.getElementById("realgen-results-empty");
+            const paginationEl = document.getElementById("realgen-pagination");
+            const pageLabelEl = document.getElementById("realgen-page-label");
+            const prevBtn = document.getElementById("realgen-prev-btn");
+            const nextBtn = document.getElementById("realgen-next-btn");
+            const failuresEl = document.getElementById("realgen-failures");
+            const errorBoxEl = document.getElementById("realgen-error");
+            const errorTextEl = document.getElementById("realgen-error-text");
+
+            const PAGE_SIZE = 5;
+            let currentPage = 1;
+            let state = {
+                requested: {{ real_batch_requested|default(0)|tojson }},
+                completed: {{ real_batch_completed|default(0)|tojson }},
+                generated: {{ real_batch_generated|default(0)|tojson }},
+                workers: {{ real_batch_workers|default(1)|tojson }},
+                batch_time: {{ real_batch_time|default(None)|tojson }},
+                done: {{ real_batch_done|default(False)|tojson }},
+                progress_pct: {{ real_batch_progress_pct|default(0)|tojson }},
+                generate_mp4: {{ real_batch_generate_mp4|default(False)|tojson }},
+                failures: {{ real_batch_failures|default([])|tojson }},
+                results: {{ real_batch_results|default([])|tojson }},
+                error: {{ real_batch_error|default(None)|tojson }},
+            };
+
+            function escapeHtml(text) {
+                const div = document.createElement("div");
+                div.textContent = text == null ? "" : String(text);
+                return div.innerHTML;
+            }
+
+            function renderSummary() {
+                const requested = Number(state.requested || 0);
+                const completed = Number(state.completed || 0);
+                const generated = Number(state.generated || 0);
+                const workers = Number(state.workers || 1);
+                const progressPct = Math.max(0, Math.min(100, Number(state.progress_pct || 0)));
+                progressFill.style.width = `${progressPct}%`;
+
+                if (state.done) {
+                    const batchTime = state.batch_time != null ? `${state.batch_time}s` : "n/a";
+                    progressText.textContent = `Completed ${completed}/${requested} (${progressPct}%).`;
+                    summaryEl.textContent = `Generated ${generated} / ${requested} job(s) using ${workers} worker(s) in ${batchTime}.`;
+                } else {
+                    progressText.textContent = `Running: ${completed}/${requested} completed (${progressPct}%).`;
+                    summaryEl.textContent = `Batch is running with ${workers} worker(s).`;
+                }
+
+                if (state.generate_mp4) {
+                    storageNoteEl.innerHTML = "Outputs are written to <code>outputs/frames</code>, <code>outputs/labels</code>, and <code>outputs/videos</code>.";
+                } else {
+                    storageNoteEl.innerHTML = "No MP4 is generated in this batch. Training data is written to <code>outputs/frames</code> and <code>outputs/labels</code>.";
+                }
+            }
+
+            function renderFailures() {
+                const failures = Array.isArray(state.failures) ? state.failures : [];
+                if (!failures.length) {
+                    failuresEl.style.display = "none";
+                    failuresEl.innerHTML = "";
+                    return;
+                }
+                failuresEl.style.display = "block";
+                failuresEl.innerHTML = failures.map((msg) => `<p>${escapeHtml(msg)}</p>`).join("");
+            }
+
+            function renderError() {
+                if (!state.error) {
+                    errorBoxEl.style.display = "none";
+                    errorTextEl.textContent = "";
+                    return;
+                }
+                errorBoxEl.style.display = "block";
+                errorTextEl.textContent = state.error;
+            }
+
+            function renderTable() {
+                const results = Array.isArray(state.results) ? state.results : [];
+                if (!results.length) {
+                    tbody.innerHTML = "";
+                    paginationEl.style.display = "none";
+                    emptyEl.style.display = "block";
+                    emptyEl.textContent = state.done
+                        ? "No successful jobs in this batch."
+                        : "Batch running... rows will appear when jobs complete.";
+                    return;
+                }
+
+                emptyEl.style.display = "none";
+                const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+                currentPage = Math.max(1, Math.min(currentPage, totalPages));
+                const start = (currentPage - 1) * PAGE_SIZE;
+                const pageRows = results.slice(start, start + PAGE_SIZE);
+
+                tbody.innerHTML = pageRows.map((item) => `
+                    <tr>
+                        <td><code>${escapeHtml(item.job_id)}</code></td>
+                        <td><code>${escapeHtml(item.video_id)}</code></td>
+                        <td><code>${escapeHtml(item.kitchen_id)}</code></td>
+                        <td>${escapeHtml(item.length_seconds)}</td>
+                        <td>${escapeHtml(item.fps)}</td>
+                        <td>${escapeHtml(item.mouse_count)}</td>
+                        <td>${escapeHtml(item.rat_count)}</td>
+                        <td>${escapeHtml(item.cockroach_count)}</td>
+                        <td>${escapeHtml(item.render_time)}</td>
+                    </tr>
+                `).join("");
+
+                paginationEl.style.display = totalPages > 1 ? "flex" : "none";
+                pageLabelEl.textContent = `Page ${currentPage} / ${totalPages}`;
+                prevBtn.disabled = currentPage <= 1;
+                nextBtn.disabled = currentPage >= totalPages;
+            }
+
+            function applyState(nextState) {
+                state = Object.assign({}, state, nextState || {});
+                renderSummary();
+                renderError();
+                renderFailures();
+                renderTable();
+            }
+
+            async function pollStatus() {
+                try {
+                    const resp = await fetch(statusUrl, { cache: "no-store" });
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    if (data && !data.error) {
+                        applyState(data);
+                        if (data.done) return;
+                    }
+                } catch (e) {
+                    // Keep the latest UI state and retry.
+                }
+                setTimeout(pollStatus, 1500);
+            }
+
+            prevBtn.addEventListener("click", function() {
+                currentPage = Math.max(1, currentPage - 1);
+                renderTable();
+            });
+            nextBtn.addEventListener("click", function() {
+                currentPage = currentPage + 1;
+                renderTable();
+            });
+
+            applyState(state);
+            if (!state.done) {
+                pollStatus();
+            }
+        })();
+        </script>
+        {% endif %}
+
+        {# ================================================================== #}
         {# KITCHEN CURATOR TAB                                                #}
         {# ================================================================== #}
-        {% if active_tab == 'curator' %}
+        {% elif active_tab == 'curator' %}
         <p class="subtitle">Review downloaded kitchen images. Keep moves them to <code>curated_img/</code>; Delete removes them permanently.</p>
 
         <div class="curator-toolbar">
-            {% if download_running %}
-            <p class="download-status running">Download in progress… refresh the page to check for new images.</p>
-            {% elif download_message %}
-            <p class="download-status">{{ download_message }}</p>
-            {% endif %}
-            <form action="{{ url_for('download_more') }}" method="post" style="display:inline;">
-                <button type="submit" class="btn btn-secondary" {% if download_running %}disabled{% endif %}>
+            <p
+                id="download-status"
+                class="download-status {% if download_running %}running{% endif %}"
+                data-running="{{ '1' if download_running else '0' }}"
+                {% if not download_message %}style="display:none;"{% endif %}
+            >
+                {{ download_message }}
+            </p>
+            <form id="download-more-form" action="{{ url_for('download_more') }}" method="post" style="display:inline;">
+                <label style="display:inline-flex; align-items:center; gap:0.4rem; margin-right:0.5rem; color:#495057; font-size:0.9rem;">
+                    Count
+                    <input
+                        id="download-count-input"
+                        type="number"
+                        name="download_count"
+                        min="1"
+                        value="{{ curator_download_default|default(100) }}"
+                        style="width:90px; padding:0.3rem 0.45rem; border:1px solid #ced4da; border-radius:4px;"
+                        {% if download_running %}disabled{% endif %}
+                    >
+                </label>
+                <button id="download-more-btn" type="submit" class="btn btn-secondary" {% if download_running %}disabled{% endif %}>
                     &#x2B07; Download More Images
                 </button>
             </form>
         </div>
+
+        <script>
+        (function() {
+            const statusEl = document.getElementById("download-status");
+            if (!statusEl) return;
+            const countInput = document.getElementById("download-count-input");
+            const button = document.getElementById("download-more-btn");
+            let hadRunning = statusEl.dataset.running === "1";
+
+            function setRunning(running) {
+                if (button) button.disabled = running;
+                if (countInput) countInput.disabled = running;
+                statusEl.classList.toggle("running", running);
+            }
+
+            async function pollStatus() {
+                try {
+                    const resp = await fetch("{{ url_for('download_status') }}", {cache: "no-store"});
+                    if (!resp.ok) return;
+                    const data = await resp.json();
+                    const running = !!data.running;
+                    statusEl.textContent = data.message || "";
+                    statusEl.style.display = data.message ? "block" : "none";
+                    setRunning(running);
+
+                    if (hadRunning && !running) {
+                        window.location.href = "{{ url_for('curator') }}";
+                        return;
+                    }
+                    hadRunning = running;
+                } catch (e) {
+                    // keep current status if poll fails
+                }
+            }
+
+            setRunning(hadRunning);
+            pollStatus();
+            setInterval(pollStatus, 2000);
+        })();
+        </script>
 
         {% if curator_total and curator_current %}
         <div class="curator-panel">
@@ -255,7 +603,7 @@
         {# GENERATOR TAB (Pest Video Generation)                              #}
         {# ================================================================== #}
         {% else %}
-        <p class="subtitle">Choose from your curated kitchens, or upload a new image.</p>
+        <p class="subtitle">Test Video Generator: choose from your curated kitchens, or upload a new image.</p>
 
         <div class="curated-picker">
             <h3>Generate From Curated Kitchens</h3>

@@ -9,14 +9,13 @@ import shutil
 import subprocess
 import time as _time
 import uuid
+from collections import Counter
 
 import cv2
 import numpy as np
 from generator.config import (
     FRAMES_DIR,
     LABELS_DIR,
-    MAX_PESTS,
-    MIN_PESTS,
     NUM_FRAMES,
     PEST_FORWARD_AXIS,
     PEST_PARAMS,
@@ -55,23 +54,95 @@ DEFAULT_SPAWN_PROBS = {
     "side_toward": 0.066,
     "down": 0.02,
 }
+GLOBAL_PEST_SIZE_MULTIPLIER = 1.2
+
+# Pest count sampling for each video:
+#   P(N=0) = 0.25 (null cases)
+#   P(N=1) = 0.30
+#   Remaining 0.45 distributed exponentially over N=2..6.
+NULL_CASE_PROB = 0.25
+ONE_PEST_PROB = 0.30
+MAX_PESTS_PER_VIDEO = 6
+COUNT_EXP_DECAY_RATIO = 0.5  # each step has ~half the mass of the previous
+
+# Pest type sampling for each pest slot.
+PEST_TYPE_SAMPLING_WEIGHTS = {
+    "cockroach": 0.50,
+    "mouse": 0.30,
+    "rat": 0.20,
+}
 
 
-def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, videos_root=None):
+def _build_num_pest_distribution():
+    options = [0, 1]
+    weights = [float(NULL_CASE_PROB), float(ONE_PEST_PROB)]
+
+    tail_count = max(0, int(MAX_PESTS_PER_VIDEO) - 1)  # N=2..MAX
+    tail_mass = max(0.0, 1.0 - weights[0] - weights[1])
+    if tail_count > 0:
+        raw = [float(COUNT_EXP_DECAY_RATIO) ** i for i in range(tail_count)]
+        raw_sum = sum(raw)
+        if raw_sum <= 1e-12:
+            tail = [tail_mass / float(tail_count)] * tail_count
+        else:
+            tail = [tail_mass * (v / raw_sum) for v in raw]
+        options.extend(range(2, int(MAX_PESTS_PER_VIDEO) + 1))
+        weights.extend(tail)
+
+    total = sum(weights)
+    if total <= 1e-12:
+        return [0], [1.0]
+    weights = [w / total for w in weights]
+    return options, weights
+
+
+NUM_PEST_OPTIONS, NUM_PEST_WEIGHTS = _build_num_pest_distribution()
+PEST_TYPE_OPTIONS = [p for p in PEST_TYPES if p in PEST_TYPE_SAMPLING_WEIGHTS]
+if not PEST_TYPE_OPTIONS:
+    PEST_TYPE_OPTIONS = list(PEST_TYPES)
+PEST_TYPE_WEIGHTS = [float(PEST_TYPE_SAMPLING_WEIGHTS.get(p, 1.0)) for p in PEST_TYPE_OPTIONS]
+
+
+def generate_video(
+    image_path,
+    video_id=None,
+    job_id=None,
+    frames_root=None,
+    labels_root=None,
+    videos_root=None,
+    num_frames=None,
+    fps=None,
+    assemble_video=True,
+):
     """Run the full generation pipeline for one kitchen image.
 
     Args:
         image_path: Absolute path to the uploaded kitchen image.
-        job_id: Optional job identifier. Generated if not provided.
+        video_id: Optional video identifier. Generated if not provided.
+        job_id: Legacy alias for video_id (kept for backward compatibility).
         frames_root: Override for frames output directory.
         labels_root: Override for labels output directory.
         videos_root: Override for videos output directory.
+        num_frames: Optional override for number of frames to render.
+        fps: Optional override for video/compositing frame rate.
+        assemble_video: Whether to assemble frame PNGs into an MP4.
 
     Returns:
-        Dict with job_id, video_path, frames_dir, labels_dir.
+        Dict with video_id/job_id, video_path, frames_dir, labels_dir,
+        pest_counts, fps, num_frames, and per-pest generation metadata.
     """
-    if job_id is None:
-        job_id = uuid.uuid4().hex[:8]
+    def _positive_int(value, default):
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return default
+        return parsed if parsed > 0 else default
+
+    if video_id is None:
+        video_id = job_id
+    if video_id is None:
+        video_id = uuid.uuid4().hex[:8]
+    job_id = video_id
 
     frames_dir = os.path.join(frames_root or FRAMES_DIR, job_id)
     labels_dir = os.path.join(labels_root or LABELS_DIR, job_id)
@@ -81,25 +152,32 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
     os.makedirs(labels_dir, exist_ok=True)
     os.makedirs(os.path.dirname(video_path), exist_ok=True)
 
-    # Choose random pests
-    num_pests = random.randint(MIN_PESTS, MAX_PESTS)
+    effective_fps = _positive_int(fps, FPS)
+    effective_num_frames = _positive_int(num_frames, NUM_FRAMES)
+
+    # Choose number of pests from configured non-uniform distribution.
+    num_pests = random.choices(NUM_PEST_OPTIONS, weights=NUM_PEST_WEIGHTS, k=1)[0]
     pest_configs = []
     for _ in range(num_pests):
-        pest_type = random.choice(PEST_TYPES)
+        pest_type = random.choices(PEST_TYPE_OPTIONS, weights=PEST_TYPE_WEIGHTS, k=1)[0]
         params = dict(PEST_PARAMS[pest_type])
         # Convert tuples to lists for JSON serialization
         for key in ["body_scale", "head_scale", "head_offset", "color"]:
             if params[key] is not None:
                 params[key] = list(params[key])
-        # Convert world-units/second speeds to per-frame world units using FPS.
+        # Convert world-units/second speeds to per-frame world units using the
+        # effective FPS for this specific generation request.
         # This ensures max speed is physically grounded regardless of frame rate.
         base_speed_wps = float(params.pop("base_speed_wps", 0.1))
         max_speed_wps  = float(params.pop("max_speed_wps",  1.0))
         params["base_speed_wps"] = base_speed_wps
         params["max_speed_wps"]  = max_speed_wps
-        params["speed"]          = base_speed_wps / FPS
-        params["max_step_world"] = max_speed_wps / FPS
+        params["speed"]          = base_speed_wps / effective_fps
+        params["max_step_world"] = max_speed_wps / effective_fps
         pest_configs.append({"type": pest_type, "params": params})
+
+    pest_counts = Counter(cfg["type"] for cfg in pest_configs)
+    pest_generation_metadata = []
 
     # Depth-aware placement — Metric3D v2 yields depth + normals in one pass.
     # Gravity estimation (classical VP) is independent and can run in parallel.
@@ -206,14 +284,41 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         default_body_x = PEST_PARAMS[pest_type]["body_scale"][0]
         if depth_val > 0.1:
             raw_scale = real_size * focal_length_px * PLANE_WIDTH / (depth_val * RENDER_WIDTH)
-            blender_scale = float(max(default_body_x * 0.4, min(default_body_x * 3.0, raw_scale)))
+            base_blender_scale = float(
+                max(default_body_x * 0.4, min(default_body_x * 3.0, raw_scale))
+            )
         else:
-            blender_scale = default_body_x
+            base_blender_scale = float(default_body_x)
+
+        blender_scale = float(base_blender_scale * GLOBAL_PEST_SIZE_MULTIPLIER)
 
         params["blender_scale"]  = blender_scale
         params["forward_axis"]   = PEST_FORWARD_AXIS.get(pest_type, "X")
         # Pass depth info through for per-frame depth-aware speed cap in compute_walk.
         params["focal_length_px"] = float(focal_length_px)
+
+        # Metadata for generated_state.json: size + initial placement in image coordinates.
+        render_px = int(round((wx / PLANE_WIDTH + 0.5) * (RENDER_WIDTH - 1)))
+        render_py = int(round((0.5 - wy / PLANE_HEIGHT) * (RENDER_HEIGHT - 1)))
+        render_px = max(0, min(RENDER_WIDTH - 1, render_px))
+        render_py = max(0, min(RENDER_HEIGHT - 1, render_py))
+        approx_pixel_width = float(blender_scale * RENDER_WIDTH / PLANE_WIDTH)
+        relative_size_scale = (
+            float(blender_scale / default_body_x) if float(default_body_x) > 1e-8 else None
+        )
+
+        pest_generation_metadata.append({
+            "pest_index": int(pest_idx),
+            "pest_type": pest_type,
+            "relative_size_scale": round(relative_size_scale, 4) if relative_size_scale is not None else None,
+            "relative_size_image_fraction": round(approx_pixel_width / float(RENDER_WIDTH), 5),
+            "approx_initial_pixel_width": round(approx_pixel_width, 2),
+            "initial_position_image_px": {"x": int(render_px), "y": int(render_py)},
+            "initial_position_image_norm": {
+                "x": round(render_px / float(max(RENDER_WIDTH - 1, 1)), 6),
+                "y": round(render_py / float(max(RENDER_HEIGHT - 1, 1)), 6),
+            },
+        })
 
     # Composite pest sprites onto background image
     print(f"Running 2D compositing for job {job_id}...")
@@ -223,27 +328,40 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         pest_configs=pest_configs,
         frames_dir=frames_dir,
         labels_dir=labels_dir,
-        num_frames=NUM_FRAMES,
+        num_frames=effective_num_frames,
         sprites_dir=SPRITES_DIR,
         render_width=RENDER_WIDTH,
         render_height=RENDER_HEIGHT,
         plane_width=PLANE_WIDTH,
         plane_height=PLANE_HEIGHT,
         depth_map=depth_map,
-        fps=FPS,
+        fps=effective_fps,
         surface_group_masks=surface_group_masks,
         normals=predicted_normals,
     )
     print(f"Compositing finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
 
-    # Assemble frames into MP4
-    _assemble_video(frames_dir, video_path)
+    # Assemble frames into MP4 (optional for training-only generation).
+    if assemble_video:
+        _assemble_video(frames_dir, video_path, fps=effective_fps)
+    else:
+        video_path = None
 
     return {
+        "video_id": job_id,
         "job_id": job_id,
         "video_path": video_path,
         "frames_dir": frames_dir,
         "labels_dir": labels_dir,
+        "pest_counts": {
+            "mouse": int(pest_counts.get("mouse", 0)),
+            "rat": int(pest_counts.get("rat", 0)),
+            "cockroach": int(pest_counts.get("cockroach", 0)),
+        },
+        "pest_size_multiplier": float(GLOBAL_PEST_SIZE_MULTIPLIER),
+        "pest_generation_metadata": pest_generation_metadata,
+        "fps": effective_fps,
+        "num_frames": effective_num_frames,
     }
 
 
@@ -267,7 +385,7 @@ def _resolve_spawn_probs(spawn_probs):
     return probs
 
 
-def _assemble_video(frames_dir, video_path):
+def _assemble_video(frames_dir, video_path, fps=FPS):
     """Combine rendered PNG frames into an H.264 MP4 using ffmpeg (browser-compatible).
 
     Falls back to OpenCV (mp4v) if ffmpeg is not available.
@@ -275,6 +393,7 @@ def _assemble_video(frames_dir, video_path):
     Args:
         frames_dir: Directory containing frame_XXXX.png files.
         video_path: Output MP4 path.
+        fps: Frame rate for video encoding.
     """
     frame_files = sorted(
         f for f in os.listdir(frames_dir)
@@ -294,7 +413,7 @@ def _assemble_video(frames_dir, video_path):
         pattern = os.path.join(frames_dir, "frame_%04d.png")
         cmd = [
             ffmpeg, "-y",
-            "-framerate", str(FPS),
+            "-framerate", str(fps),
             "-i", pattern,
             "-c:v", "libx264",
             "-preset", "slow",
@@ -314,7 +433,7 @@ def _assemble_video(frames_dir, video_path):
     first_frame = cv2.imread(os.path.join(frames_dir, frame_files[0]))
     h, w = first_frame.shape[:2]
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(video_path, fourcc, FPS, (w, h))
+    writer = cv2.VideoWriter(video_path, fourcc, fps, (w, h))
     for fname in frame_files:
         writer.write(cv2.imread(os.path.join(frames_dir, fname)))
     writer.release()
