@@ -24,9 +24,9 @@ class CocoDetectionDETR(CocoDetection):
     Expected dataset layout (produced by the generator pipeline):
         data_dir/
         ├── images/
-        │   ├── train/  *.jpg
-        │   ├── val/    *.jpg
-        │   └── test/   *.jpg
+        │   ├── train/  *.png
+        │   ├── val/    *.png
+        │   └── test/   *.png
         └── annotations/
             ├── train.json
             ├── val.json

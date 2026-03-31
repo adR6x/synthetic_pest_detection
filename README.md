@@ -15,7 +15,7 @@ The web app has four tabs:
 - Configurable: length, fps, number of videos, optional MP4 output.
 - Progress bar + live polling + 5-row paginated results.
 - Writes metadata to `outputs/generated_state.json`.
-- Keeps only `frame_*.png` in each real job folder (aux previews/masks are pruned).
+- Keeps only `frame_*.png` images in each real job folder (aux previews/masks are pruned).
 
 3. `Kitchen Curator`
 - Review `uncurated_img/` images.

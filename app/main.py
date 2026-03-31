@@ -240,6 +240,7 @@ def _generate_video_for_image_with_params(
         num_frames=num_frames,
         fps=fps,
         assemble_video=assemble_video,
+        frame_format="png",
         save_scene_previews=not use_real_outputs,
         save_mask_previews=not use_real_outputs,
         save_movement_masks=not use_real_outputs,

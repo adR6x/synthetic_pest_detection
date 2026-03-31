@@ -113,6 +113,7 @@ def generate_video(
     num_frames=None,
     fps=None,
     assemble_video=True,
+    frame_format="png",
     save_scene_previews=True,
     save_mask_previews=True,
     save_movement_masks=True,
@@ -130,11 +131,12 @@ def generate_video(
         num_frames: Optional override for number of frames to render.
         fps: Optional override for video/compositing frame rate.
         assemble_video: Whether to assemble frame PNGs into an MP4.
+        frame_format: Frame image format (png, jpg/jpeg, webp).
         save_scene_previews: Whether to save depth/surface/gravity preview images.
         save_mask_previews: Whether to save per-frame pest mask preview images.
         save_movement_masks: Whether to save per-surface movement mask PNGs.
         keep_only_frame_outputs: If True, delete non-frame artifacts from frames_dir
-            after generation, keeping only frame_*.png.
+            after generation, keeping only frame_*.{png,jpg,jpeg,webp}.
 
     Returns:
         Dict with video_id/job_id, video_path, frames_dir, labels_dir,
@@ -146,6 +148,14 @@ def generate_video(
         except (TypeError, ValueError):
             return default
         return parsed if parsed > 0 else default
+
+    def _normalize_frame_format(value):
+        fmt = str(value or "png").strip().lower()
+        if fmt == "jpeg":
+            fmt = "jpg"
+        if fmt not in {"png", "jpg", "webp"}:
+            fmt = "png"
+        return fmt
 
     if video_id is None:
         video_id = job_id
@@ -163,6 +173,7 @@ def generate_video(
 
     effective_fps = _positive_int(fps, FPS)
     effective_num_frames = _positive_int(num_frames, NUM_FRAMES)
+    frame_ext = _normalize_frame_format(frame_format)
 
     # Choose number of pests from configured non-uniform distribution.
     num_pests = random.choices(NUM_PEST_OPTIONS, weights=NUM_PEST_WEIGHTS, k=1)[0]
@@ -357,12 +368,13 @@ def generate_video(
         surface_group_masks=surface_group_masks,
         normals=predicted_normals,
         save_mask_previews=bool(save_mask_previews),
+        frame_format=frame_ext,
     )
     print(f"Compositing finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
 
     # Assemble frames into MP4 (optional for training-only generation).
     if assemble_video:
-        _assemble_video(frames_dir, video_path, fps=effective_fps)
+        _assemble_video(frames_dir, video_path, fps=effective_fps, frame_ext=frame_ext)
     else:
         video_path = None
 
@@ -408,7 +420,7 @@ def _resolve_spawn_probs(spawn_probs):
 
 
 def _prune_auxiliary_frame_files(frames_dir):
-    """Keep only rendered frame PNGs in frames_dir, remove generation artifacts."""
+    """Keep only rendered frame image files in frames_dir, remove artifacts."""
     try:
         names = os.listdir(frames_dir)
     except OSError:
@@ -418,8 +430,12 @@ def _prune_auxiliary_frame_files(frames_dir):
         path = os.path.join(frames_dir, name)
         if not os.path.isfile(path):
             continue
-        is_frame_png = name.startswith("frame_") and name.endswith(".png")
-        if is_frame_png:
+        lower = name.lower()
+        is_frame = (
+            lower.startswith("frame_")
+            and lower.endswith((".png", ".jpg", ".jpeg", ".webp"))
+        )
+        if is_frame:
             continue
         try:
             os.remove(path)
@@ -427,19 +443,23 @@ def _prune_auxiliary_frame_files(frames_dir):
             pass
 
 
-def _assemble_video(frames_dir, video_path, fps=FPS):
-    """Combine rendered PNG frames into an H.264 MP4 using ffmpeg (browser-compatible).
+def _assemble_video(frames_dir, video_path, fps=FPS, frame_ext="png"):
+    """Combine rendered frames into an H.264 MP4 using ffmpeg (browser-compatible).
 
     Falls back to OpenCV (mp4v) if ffmpeg is not available.
 
     Args:
-        frames_dir: Directory containing frame_XXXX.png files.
+        frames_dir: Directory containing frame_XXXX.<ext> files.
         video_path: Output MP4 path.
         fps: Frame rate for video encoding.
+        frame_ext: Frame file extension (png, jpg/jpeg, webp).
     """
+    frame_ext = str(frame_ext or "png").strip().lower()
+    if frame_ext == "jpeg":
+        frame_ext = "jpg"
     frame_files = sorted(
         f for f in os.listdir(frames_dir)
-        if f.startswith("frame_") and f.endswith(".png")
+        if f.startswith("frame_") and f.lower().endswith(f".{frame_ext}")
     )
     if not frame_files:
         raise FileNotFoundError(f"No frames found in {frames_dir}")
@@ -452,7 +472,7 @@ def _assemble_video(frames_dir, video_path, fps=FPS):
         except Exception:
             pass
     if ffmpeg:
-        pattern = os.path.join(frames_dir, "frame_%04d.png")
+        pattern = os.path.join(frames_dir, f"frame_%04d.{frame_ext}")
         cmd = [
             ffmpeg, "-y",
             "-framerate", str(fps),

@@ -41,6 +41,7 @@ def composite_frames(
     surface_group_masks=None,
     normals=None,
     save_mask_previews=True,
+    frame_format="png",
 ):
     """Render all frames by compositing pest sprites onto the background image.
 
@@ -48,7 +49,7 @@ def composite_frames(
       1. Copy the background image (resized to render_width x render_height).
       2. For each pest: look up (wx, wy, angle_rad) from its walk trajectory,
          resize sprite, rotate, and alpha-composite onto the frame.
-      3. Save as frames_dir/frame_{i:04d}.png.
+      3. Save as frames_dir/frame_{i:04d}.<ext>.
 
     Also writes a COCO annotations.json to labels_dir.
 
@@ -68,7 +69,7 @@ def composite_frames(
                                "sprite_width_scale"  – optional float (default 1.0)
                                "sprite_height_scale" – optional float (default 1.0)
                            }
-        frames_dir:    Directory to write frame_XXXX.png files into.
+        frames_dir:    Directory to write frame_XXXX.<ext> files into.
         labels_dir:    Directory to write annotations.json into.
         num_frames:    Number of frames to render.
         sprites_dir:   Root directory for per-pest-type sprite PNG files.
@@ -79,9 +80,11 @@ def composite_frames(
         depth_map:     Optional (H, W) float32 depth array in metres.
         fps:           Frames per second (used for depth-aware speed cap).
         save_mask_previews: Whether to save per-pest dynamic mask preview PNGs.
+        frame_format: Output frame format. Supported: png, jpg/jpeg, webp.
     """
     os.makedirs(frames_dir, exist_ok=True)
     os.makedirs(labels_dir, exist_ok=True)
+    frame_ext = _normalize_frame_format(frame_format)
 
     # Load and resize background once
     bg = Image.open(image_path).convert("RGBA")
@@ -276,8 +279,8 @@ def composite_frames(
                 })
                 ann_id += 1
 
-        frame_path = os.path.join(frames_dir, f"frame_{frame_num:04d}.png")
-        frame_img.convert("RGB").save(frame_path)
+        frame_path = os.path.join(frames_dir, f"frame_{frame_num:04d}.{frame_ext}")
+        _save_frame_image(frame_img.convert("RGB"), frame_path, frame_ext)
 
         if save_mask_previews:
             # --- Per-pest dynamic "pest vision" mask preview ---
@@ -307,7 +310,7 @@ def composite_frames(
 
         coco_images.append({
             "id":        frame_num,
-            "file_name": f"frame_{frame_num:04d}.png",
+            "file_name": f"frame_{frame_num:04d}.{frame_ext}",
             "width":     render_width,
             "height":    render_height,
         })
@@ -358,6 +361,27 @@ def _compute_pixel_size(
     pixel_w = max(4, int(base_w * width_scale))
     pixel_h = max(4, int(base_h * height_scale))
     return pixel_w, pixel_h
+
+
+def _normalize_frame_format(frame_format):
+    fmt = str(frame_format or "png").strip().lower()
+    if fmt == "jpeg":
+        return "jpg"
+    if fmt not in {"png", "jpg", "webp"}:
+        return "png"
+    return fmt
+
+
+def _save_frame_image(image_rgb, frame_path, frame_ext):
+    """Save RGB frame with format-specific settings."""
+    if frame_ext == "webp":
+        # Lossless WebP: materially smaller than PNG with no quality loss.
+        image_rgb.save(frame_path, format="WEBP", lossless=True, quality=100, method=6)
+        return
+    if frame_ext == "jpg":
+        image_rgb.save(frame_path, format="JPEG", quality=95, subsampling=0)
+        return
+    image_rgb.save(frame_path, format="PNG")
 
 
 def _sharpen_rgba(img):
