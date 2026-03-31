@@ -33,6 +33,45 @@ fi
 PYTHON_VERSION=$($PROJECT_PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
 info "Using $PROJECT_PYTHON (Python $PYTHON_VERSION)"
 
+# ─── Linux runtime deps (OpenCV) ─────────────────────────────────────────────
+# opencv-python requires system libs such as libGL and glib on Linux.
+if [ "$(uname -s)" = "Linux" ]; then
+    info "Checking Linux runtime libraries required by OpenCV..."
+    MISSING_DEPS=()
+
+    if ! $PROJECT_PYTHON -c "import ctypes; ctypes.CDLL('libGL.so.1')" >/dev/null 2>&1; then
+        MISSING_DEPS+=("libgl1")
+    fi
+    if ! $PROJECT_PYTHON -c "import ctypes; ctypes.CDLL('libglib-2.0.so.0')" >/dev/null 2>&1; then
+        MISSING_DEPS+=("libglib2.0-0")
+    fi
+
+    if [ ${#MISSING_DEPS[@]} -eq 0 ]; then
+        info "OpenCV runtime libraries are present"
+    elif command -v apt-get >/dev/null 2>&1; then
+        info "Missing runtime packages: ${MISSING_DEPS[*]}"
+        if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+            apt-get update
+            apt-get install -y "${MISSING_DEPS[@]}"
+            info "Installed Linux runtime packages for OpenCV"
+        elif command -v sudo >/dev/null 2>&1; then
+            info "Attempting to install runtime packages with sudo..."
+            if sudo apt-get update && sudo apt-get install -y "${MISSING_DEPS[@]}"; then
+                info "Installed Linux runtime packages for OpenCV"
+            else
+                warn "Automatic install failed. Run manually:"
+                warn "sudo apt-get update && sudo apt-get install -y ${MISSING_DEPS[*]}"
+            fi
+        else
+            warn "Missing runtime packages and no sudo available. Run as root:"
+            warn "apt-get update && apt-get install -y ${MISSING_DEPS[*]}"
+        fi
+    else
+        warn "Missing runtime libraries for OpenCV and apt-get is unavailable."
+        warn "Install equivalents for: ${MISSING_DEPS[*]}"
+    fi
+fi
+
 # ─── Poetry ───────────────────────────────────────────────────────────────────
 export PATH="$HOME/.local/bin:$PATH"
 POETRY_BIN="$HOME/.local/bin/poetry"

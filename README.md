@@ -45,7 +45,7 @@ poetry shell
 poetry shell
 ```
 
-Setup scripts install all required Python packages from `pyproject.toml` and install the local `mmcv` compatibility stub used by Metric3D dependencies.
+Setup scripts install all required Python packages from `pyproject.toml` and install the local `mmcv` compatibility stub used by Metric3D dependencies. On Linux, `setupUNIX.sh` also attempts to install OpenCV runtime libraries (`libgl1`, `libglib2.0-0`) when missing.
 
 ## Run The App
 
