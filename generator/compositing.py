@@ -57,6 +57,7 @@ def composite_frames(
                            "type"                – pest type string
                            "start_position"      – [wx, wy] world units
                            "placement_mask_path" – path to movement mask PNG
+                           "surface_mask_paths"  – optional {surface_group: mask_png_path}
                            "params": {
                                "speed"             – float (wu/frame)
                                "max_speed_wps"     – float (wu/s, for depth-aware cap)
@@ -104,6 +105,7 @@ def composite_frames(
             focal_length_px = float(focal_length_px)
         max_turn_deg     = params.get("max_turn_deg", 2.0)
         stickiness       = float(params.get("surface_stickiness", 0.97))
+        pause_chance     = float(params.get("pause_chance", 0.008))
 
         walk = compute_walk(
             num_frames=num_frames,
@@ -112,6 +114,7 @@ def composite_frames(
             speed=speed,
             start_position=pest_cfg.get("start_position"),
             placement_mask_path=pest_cfg.get("placement_mask_path"),
+            surface_mask_paths=pest_cfg.get("surface_mask_paths"),
             forward_axis=fwd_axis,
             max_step_world=max_step_world,
             depth_map=depth_map,
@@ -125,6 +128,7 @@ def composite_frames(
             surface_group_masks=surface_group_masks,
             normals=normals,
             surface_stickiness=stickiness,
+            pause_chance=pause_chance,
         )
 
         sprite   = load_sprite(pest_type, sprites_dir)
@@ -151,8 +155,19 @@ def composite_frames(
     # render dimensions. Used for per-frame "pest vision" mask preview.
     _viz_dynamic_masks = []
     for pest_cfg in pest_configs:
-        stickiness = float(pest_cfg["params"].get("surface_stickiness", 0.97))
-        if surface_group_masks is not None and surface_groups:
+        surface_mask_paths = pest_cfg.get("surface_mask_paths") or {}
+        if surface_mask_paths:
+            dyn_viz = {}
+            for surf, mpath in surface_mask_paths.items():
+                if not mpath or not os.path.exists(mpath):
+                    continue
+                m_pil = Image.open(mpath).convert("L").resize(
+                    (render_width, render_height), Image.LANCZOS
+                )
+                dyn_viz[surf] = np.array(m_pil, dtype=np.float32) / 255.0
+            _viz_dynamic_masks.append(dyn_viz if dyn_viz else None)
+        elif surface_group_masks is not None and surface_groups:
+            stickiness = float(pest_cfg["params"].get("surface_stickiness", 0.97))
             ow = (1.0 - stickiness) ** 2
             dyn_viz = {}
             for surf in surface_groups:

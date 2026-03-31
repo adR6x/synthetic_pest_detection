@@ -16,6 +16,7 @@ def compute_walk(
     speed,
     start_position=None,
     placement_mask_path=None,
+    surface_mask_paths=None,
     forward_axis="X",
     max_step_world=None,
     depth_map=None,
@@ -29,6 +30,7 @@ def compute_walk(
     surface_group_masks=None,
     normals=None,
     surface_stickiness=0.97,
+    pause_chance=0.008,
 ):
     """Compute a smooth steering trajectory for one pest.
 
@@ -36,7 +38,9 @@ def compute_walk(
     gradually turns toward it (max 2°/frame), smooths speed with a lerp,
     and occasionally pauses.
 
-    When surface_group_masks and normals are provided, the movement mask is
+    When surface-specific mask files are provided via `surface_mask_paths`,
+    those exact per-pest movement masks are loaded and used at runtime.
+    Otherwise, when surface_group_masks and normals are provided, the movement mask is
     determined dynamically each frame: the pest's current pixel is looked up
     in the normals array to detect which surface group it's on, and the
     corresponding blended mask is used for the probabilistic move check.
@@ -55,14 +59,21 @@ def compute_walk(
     # Static fallback mask (used when dynamic surface masks are unavailable).
     placement_mask = _load_mask(placement_mask_path)
 
-    # Pre-compute one blended movement mask per surface group so we can switch
-    # dynamically each frame without recomputing on the fly.
+    # Prefer explicit per-surface mask files (generated in pipeline.py) so the
+    # simulation is strictly driven by saved per-pest masks.
     _dynamic_masks = {}
     _surface_groups = ()
     _norm_h = _norm_w = 0
-    if surface_group_masks is not None and normals is not None:
+    if isinstance(surface_mask_paths, dict):
+        for surf, mpath in surface_mask_paths.items():
+            arr = _load_mask_array(mpath)
+            if arr is not None:
+                _dynamic_masks[str(surf)] = arr
+        _surface_groups = tuple(_dynamic_masks.keys())
+
+    # Fallback for legacy calls where per-surface files are not available.
+    if not _dynamic_masks and surface_group_masks is not None and normals is not None:
         _surface_groups = tuple(surface_group_masks.keys())
-        _norm_h, _norm_w = normals.shape[:2]
         ow = (1.0 - surface_stickiness) ** 2          # other-surface weight
         for surf in _surface_groups:
             same  = surface_group_masks[surf]
@@ -74,6 +85,9 @@ def compute_walk(
             m    = same + ow * other
             peak = float(m.max())
             _dynamic_masks[surf] = (m / peak if peak > 1e-6 else m).astype(np.float32)
+
+    if _dynamic_masks and normals is not None:
+        _norm_h, _norm_w = normals.shape[:2]
 
     if start_position is not None and len(start_position) >= 2:
         x = _clamp(float(start_position[0]), -x_range, x_range)
@@ -92,6 +106,7 @@ def compute_walk(
     if max_step_world is None:
         max_step_world = speed * 6.0
     max_step_world = max(float(max_step_world), float(speed))
+    pause_chance = float(np.clip(pause_chance, 0.0, 1.0))
     if base_speed_wps is None:
         base_speed_wps = float(speed) * float(max(fps, 1))
     base_speed_wps = float(base_speed_wps)
@@ -112,7 +127,7 @@ def compute_walk(
         # Detect which surface group the pest is currently standing on.
         # Used both to select the active movement mask and to tag the frame
         # for the mask-preview visualisation in compositing.py.
-        current_surface = "up"   # default
+        current_surface = _surface_groups[0] if _surface_groups else "up"
         if _dynamic_masks and _norm_h > 0 and _norm_w > 0:
             nx_px = int(_clamp(round((x / plane_width + 0.5) * (_norm_w - 1)), 0, _norm_w - 1))
             ny_px = int(_clamp(round((0.5 - y / plane_height) * (_norm_h - 1)), 0, _norm_h - 1))
@@ -183,8 +198,8 @@ def compute_walk(
         # Global speed cap by pest type
         current_speed = min(current_speed, dynamic_max_step)
 
-        # Occasional pause, then burst
-        if burst_timer == 0 and random.random() < 0.008:
+        # Occasional pause, then burst (species-configurable probability).
+        if burst_timer == 0 and random.random() < pause_chance:
             pause_timer  = random.randint(12, 35)
             target_speed = min(dynamic_base_step * 1.4, dynamic_max_step)
             continue
@@ -333,6 +348,20 @@ def _load_mask(mask_path):
             print(f"WARNING: Unsupported placement mask format: {mask_path}")
             _MASK_CACHE[mask_path] = None
     return _MASK_CACHE[mask_path]
+
+
+def _load_mask_array(mask_path):
+    """Load and cache a placement mask image as (H, W) float32 array in [0..1]."""
+    if not mask_path:
+        return None
+    key = ("array", mask_path)
+    if key not in _MASK_CACHE:
+        try:
+            arr = np.array(Image.open(mask_path).convert("L"), dtype=np.float32) / 255.0
+            _MASK_CACHE[key] = arr
+        except Exception:
+            _MASK_CACHE[key] = None
+    return _MASK_CACHE[key]
 
 
 def _position_probability(x, y, mask, plane_width, plane_height):

@@ -43,14 +43,16 @@ PEST_PARAMS = {
         #   "side_toward" wall/cabinet face whose normal points toward camera
         #   "down"        ceiling / underside
         "spawn_probs": {
-            "up": 0.95,
-            "side_left": 0.015,
-            "side_right": 0.015,
-            "side_toward": 0.02,
+            "up": 1.00,
+            "side_left": 0.00,
+            "side_right": 0.00,
+            "side_toward": 0.00,
             "down": 0.00,
         },
         # Probability of staying on the same surface group per movement frame.
-        "surface_stickiness": 0.97,
+        "surface_stickiness": 0.95,
+        # Per-frame pause trigger probability.
+        "pause_chance": 0.12,
         "max_turn_deg": 3.0,
     },
     "rat": {
@@ -63,12 +65,14 @@ PEST_PARAMS = {
         "max_speed_wps": 1.0,
         # Rat is heavy — almost exclusively floor/counter bound.
         "spawn_probs": {
-            "up": 0.99,
-            "side_left": 0.003,
-            "side_right": 0.003,
-            "side_toward": 0.004,
+            "up": 1.00,
+            "side_left": 0.00,
+            "side_right": 0.00,
+            "side_toward": 0.00,
             "down": 0.00,
         },
+        # Per-frame pause trigger probability.
+        "pause_chance": 0.20,
         "surface_stickiness": 0.99,
         "max_turn_deg": 2.0,
     },
@@ -88,7 +92,9 @@ PEST_PARAMS = {
             "side_toward": 0.12,
             "down": 0.22,
         },
-        "surface_stickiness": 0.88,
+        # Per-frame pause trigger probability.
+        "pause_chance": 0.05,
+        "surface_stickiness": 0.75,
         "max_turn_deg": 8.0,
     },
 }

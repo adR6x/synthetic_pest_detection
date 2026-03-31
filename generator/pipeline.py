@@ -11,6 +11,7 @@ import time as _time
 import uuid
 
 import cv2
+import numpy as np
 from generator.config import (
     FRAMES_DIR,
     LABELS_DIR,
@@ -129,6 +130,14 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
 
     # Build directional surface-group probability maps once (shared across pests).
     surface_group_masks = build_surface_group_masks(predicted_normals)
+    groups_for_spawn = [g for g in SURFACE_GROUPS if g in surface_group_masks]
+    if not groups_for_spawn:
+        groups_for_spawn = list(surface_group_masks.keys())
+    _spawn_group_to_idx = {g: i for i, g in enumerate(groups_for_spawn)}
+    _spawn_argmax_idx = np.argmax(
+        np.stack([surface_group_masks[g] for g in groups_for_spawn], axis=0), axis=0
+    )
+
     for pest_idx, pest_cfg in enumerate(pest_configs):
         pest_type   = pest_cfg["type"]
         params      = pest_cfg["params"]
@@ -136,9 +145,7 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         stickiness  = float(params.get("surface_stickiness", 0.97))
 
         # Choose which surface group this pest spawns on (weighted random).
-        groups  = [g for g in SURFACE_GROUPS if g in surface_group_masks]
-        if not groups:
-            groups = list(surface_group_masks.keys())
+        groups  = groups_for_spawn
         weights = [spawn_probs.get(g, 0.0) for g in groups]
         total_w = sum(weights)
         if total_w <= 0:
@@ -147,22 +154,42 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
             weights = [1.0 / max(len(groups), 1)] * len(groups)
         spawn_surface = random.choices(groups, weights=weights)[0]
 
-        # Sample start position from the chosen surface group's probability map.
+        # Sample start position from the chosen surface group.
+        # Use dominant-surface-only pixels so "up" spawns do not leak onto walls.
+        spawn_map = np.array(surface_group_masks[spawn_surface], dtype=np.float32)
+        spawn_idx = _spawn_group_to_idx.get(spawn_surface)
+        if spawn_idx is not None:
+            spawn_map = np.where(_spawn_argmax_idx == spawn_idx, spawn_map, 0.0)
+            if float(spawn_map.sum()) <= 1e-8:
+                spawn_map = np.array(surface_group_masks[spawn_surface], dtype=np.float32)
+
         start_position = sample_pest_positions_from_probability(
-            surface_group_masks[spawn_surface],
+            spawn_map,
             n=1,
             plane_width=PLANE_WIDTH,
             plane_height=PLANE_HEIGHT,
         )[0]
 
-        # Build blended movement mask: high weight on spawn surface, low on others.
-        movement_prob = build_movement_mask(surface_group_masks, spawn_surface, stickiness)
-        mask_filename = f"movement_mask_{pest_type}_{pest_idx}.png"
-        mask_path     = os.path.abspath(os.path.join(frames_dir, mask_filename))
-        save_movement_mask_preview(movement_prob, spawn_surface, mask_path)
+        # Build and save per-surface movement masks for this pest so simulation
+        # can read the exact generated masks at runtime (fully mask-driven).
+        surface_mask_paths = {}
+        for surface_name in groups:
+            movement_prob = build_movement_mask(
+                surface_group_masks, surface_name, stickiness
+            )
+            mask_filename = f"movement_mask_{pest_type}_{pest_idx}_{surface_name}.png"
+            mask_path = os.path.abspath(os.path.join(frames_dir, mask_filename))
+            save_movement_mask_preview(movement_prob, surface_name, mask_path)
+            surface_mask_paths[surface_name] = mask_path
+
+        # Keep a single default mask path (spawn surface) for fallback and compatibility.
+        mask_path = surface_mask_paths.get(spawn_surface)
+        if not mask_path and surface_mask_paths:
+            mask_path = next(iter(surface_mask_paths.values()))
 
         pest_cfg["start_position"]    = [float(start_position[0]), float(start_position[1])]
         pest_cfg["placement_mask_path"] = mask_path
+        pest_cfg["surface_mask_paths"] = surface_mask_paths
 
         # Depth-based scale: apparent pixel width = real_size_m * fx / depth_m
         # => blender_scale = real_size_m * fx * PLANE_WIDTH / (depth_m * RENDER_WIDTH)
