@@ -102,8 +102,8 @@ PEST_PARAMS = {
 # Real physical body lengths (metres) used for depth-based scale calculation.
 # Body length = longest horizontal dimension of the animal.
 PEST_REAL_SIZES_M = {
-    "mouse": 0.08,       # ~8 cm body (excluding tail)
-    "rat": 0.20,         # ~20 cm body (excluding tail)
+    "mouse": 0.084,      # +5% vs baseline (~8.4 cm body, excluding tail)
+    "rat": 0.18,         # -10% vs baseline (~18 cm body, excluding tail)
     "cockroach": 0.04,   # ~4 cm body
 }
 
