@@ -54,7 +54,7 @@ DEFAULT_SPAWN_PROBS = {
     "side_toward": 0.066,
     "down": 0.02,
 }
-GLOBAL_PEST_SIZE_MULTIPLIER = 1.2
+GLOBAL_PEST_SIZE_MULTIPLIER = 1.5
 
 # Pest count sampling for each video:
 #   P(N=0) = 0.25 (null cases)

@@ -133,7 +133,7 @@ Implemented in `generator/pipeline.py`:
 - cockroach `0.50`
 - mouse `0.30`
 - rat `0.20`
-6. Compute depth-aware scale and apply global multiplier `1.2x`.
+6. Compute depth-aware scale and apply global multiplier `1.5x`.
 7. Composite frames + COCO labels.
 8. Optionally assemble MP4.
 
