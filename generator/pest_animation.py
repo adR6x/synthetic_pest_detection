@@ -264,9 +264,9 @@ def _classify_surface_group(nx, ny, nz, available_groups):
     ny = 0.0 if not np.isfinite(ny) else float(ny)
     nz = 0.0 if not np.isfinite(nz) else float(nz)
 
-    if "up" in groups and ny < -0.5:
+    if "up" in groups and ny < -0.55:
         return "up"
-    if "down" in groups and ny > 0.3:
+    if "down" in groups and ny > 0.33:
         return "down"
 
     side_candidates = [g for g in available_groups if g not in {"up", "down"}]
@@ -280,7 +280,7 @@ def _classify_surface_group(nx, ny, nz, available_groups):
     if "side" in groups and len(side_candidates) == 1:
         return "side"
 
-    if "side_toward" in groups and nz > 0.15 and abs(nx) < 0.45:
+    if "side_toward" in groups and nz > 0.165 and abs(nx) < 0.405:
         return "side_toward"
     if "side_right" in groups and "side_left" in groups:
         return "side_right" if nx >= 0.0 else "side_left"

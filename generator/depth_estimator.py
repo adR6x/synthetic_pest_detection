@@ -401,24 +401,32 @@ def build_surface_group_masks(normals):
     abs_ny = np.abs(ny)
     coherence = _normal_coherence_map(normals)
 
-    def _sig(x, center, steepness=10.0):
+    # Tighten surface separation by ~10% (user-requested stricter distinction).
+    _STRICT = 1.10
+    _UP_CENTER = 0.5 * _STRICT
+    _DOWN_CENTER = 0.3 * _STRICT
+    _SIDE_BAND = 0.35 / _STRICT
+    _DIR_X_CENTER = 0.15 * _STRICT
+    _DIR_Z_CENTER = 0.10 * _STRICT
+
+    def _sig(x, center, steepness=11.0):
         logits = np.clip(steepness * (x - center), -30.0, 30.0)
         return 1.0 / (1.0 + np.exp(-logits))
 
     # Up-facing: ny strongly negative (normal aligns with world up = camera -Y).
-    up   = (_sig(-ny, center=0.5) * coherence).astype(np.float32)
+    up   = (_sig(-ny, center=_UP_CENTER) * coherence).astype(np.float32)
 
     # Down-facing: ny strongly positive (normal opposes world up).
-    down = (_sig(ny,  center=0.3) * coherence).astype(np.float32)
+    down = (_sig(ny,  center=_DOWN_CENTER) * coherence).astype(np.float32)
 
     # Side-facing total probability: |ny| near zero.
-    side_total = _sig(0.35 - abs_ny, center=0.0)
+    side_total = _sig(_SIDE_BAND - abs_ny, center=0.0)
 
     # Split side surfaces into directional components.
     # Positive nz corresponds to normals pointing toward the camera.
-    left_gate   = _sig(-nx, center=0.15)
-    right_gate  = _sig(nx, center=0.15)
-    toward_gate = _sig(nz, center=0.10)
+    left_gate   = _sig(-nx, center=_DIR_X_CENTER)
+    right_gate  = _sig(nx, center=_DIR_X_CENTER)
+    toward_gate = _sig(nz, center=_DIR_Z_CENTER)
     gate_sum = np.clip(left_gate + right_gate + toward_gate, 1e-6, None)
 
     side_left   = (side_total * (left_gate / gate_sum) * coherence).astype(np.float32)
@@ -444,11 +452,11 @@ def classify_surface_group_at_pixel(normals, py, px):
         ny = 0.0
     if np.isnan(nz):
         nz = 0.0
-    if ny < -0.5:
+    if ny < -0.55:
         return "up"
-    if ny > 0.3:
+    if ny > 0.33:
         return "down"
-    if nz > 0.15 and abs(nx) < 0.45:
+    if nz > 0.165 and abs(nx) < 0.405:
         return "side_toward"
     return "side_right" if nx >= 0.0 else "side_left"
 
@@ -484,7 +492,8 @@ def build_movement_mask(surface_group_masks, spawn_surface, stickiness):
     # Use (1-stickiness)^2 so non-spawn surfaces are suppressed quadratically.
     # E.g. rat (0.99): other_weight=0.0001 → wall pixels get < 0.1% probability.
     # E.g. cockroach (0.88): other_weight=0.0144 → still visits other surfaces.
-    other_weight = (1.0 - stickiness) ** 2
+    # Apply an extra 10% suppression to increase inter-surface distinction.
+    other_weight = ((1.0 - stickiness) ** 2) * 0.90
     mask = same + other_weight * other
     peak = float(mask.max())
     if peak > 1e-6:
