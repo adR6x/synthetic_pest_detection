@@ -7,7 +7,7 @@ import os
 RENDER_WIDTH = 640
 RENDER_HEIGHT = 480
 FPS = 10
-NUM_FRAMES = 100
+NUM_FRAMES = 300
 
 # Output directories (relative to project root)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
