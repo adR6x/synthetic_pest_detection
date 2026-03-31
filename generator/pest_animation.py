@@ -16,7 +16,9 @@ def compute_walk(
     speed,
     start_position=None,
     placement_mask_path=None,
+    placement_mask_array=None,
     surface_mask_paths=None,
+    surface_mask_arrays=None,
     forward_axis="X",
     max_step_world=None,
     depth_map=None,
@@ -38,8 +40,9 @@ def compute_walk(
     gradually turns toward it (max 2°/frame), smooths speed with a lerp,
     and occasionally pauses (no burst/dash mode).
 
-    When surface-specific mask files are provided via `surface_mask_paths`,
-    those exact per-pest movement masks are loaded and used at runtime.
+    When surface-specific mask arrays are provided via `surface_mask_arrays`,
+    those exact per-pest movement masks are used at runtime.
+    Otherwise, if `surface_mask_paths` is provided, masks are loaded from disk.
     Otherwise, when surface_group_masks and normals are provided, the movement mask is
     determined dynamically each frame: the pest's current pixel is looked up
     in the normals array to detect which surface group it's on, and the
@@ -56,15 +59,36 @@ def compute_walk(
     x_range = plane_width / 2.0 - margin
     y_range = plane_height / 2.0 - margin
 
+    def _normalize_mask_array(arr):
+        if arr is None:
+            return None
+        try:
+            out = np.asarray(arr, dtype=np.float32)
+        except Exception:
+            return None
+        if out.ndim != 2:
+            return None
+        out = np.nan_to_num(out, nan=0.0, posinf=1.0, neginf=0.0)
+        return np.clip(out, 0.0, 1.0).astype(np.float32, copy=False)
+
     # Static fallback mask (used when dynamic surface masks are unavailable).
-    placement_mask = _load_mask(placement_mask_path)
+    placement_mask = _normalize_mask_array(placement_mask_array)
+    if placement_mask is None:
+        placement_mask = _load_mask(placement_mask_path)
 
     # Prefer explicit per-surface mask files (generated in pipeline.py) so the
     # simulation is strictly driven by saved per-pest masks.
     _dynamic_masks = {}
     _surface_groups = ()
     _norm_h = _norm_w = 0
-    if isinstance(surface_mask_paths, dict):
+    if isinstance(surface_mask_arrays, dict):
+        for surf, arr in surface_mask_arrays.items():
+            normalized = _normalize_mask_array(arr)
+            if normalized is not None:
+                _dynamic_masks[str(surf)] = normalized
+        _surface_groups = tuple(_dynamic_masks.keys())
+
+    if not _dynamic_masks and isinstance(surface_mask_paths, dict):
         for surf, mpath in surface_mask_paths.items():
             arr = _load_mask_array(mpath)
             if arr is not None:
@@ -99,7 +123,12 @@ def compute_walk(
     if placement_mask is not None and _position_probability(
         x, y, placement_mask, plane_width, plane_height
     ) <= 1e-3:
-        x, y = _sample_valid_world_position(placement_mask, plane_width, plane_height, margin)
+        if isinstance(placement_mask, np.ndarray):
+            x, y = _sample_valid_world_position_array(
+                placement_mask, plane_width, plane_height, margin
+            )
+        else:
+            x, y = _sample_valid_world_position(placement_mask, plane_width, plane_height, margin)
 
     _AXIS_OFFSET = {"X": 0.0, "-X": math.pi, "Y": -math.pi / 2, "-Y": math.pi / 2}
     axis_offset = _AXIS_OFFSET.get(forward_axis, 0.0)
@@ -406,6 +435,37 @@ def _sample_valid_world_position(mask, plane_width, plane_height, margin):
     py, px = coords[lo]
     h = mask["height"]
     w = mask["width"]
+
+    nx = px / max(w - 1, 1)
+    ny = py / max(h - 1, 1)
+    x = (nx - 0.5) * plane_width
+    y = (0.5 - ny) * plane_height
+
+    x_range = plane_width / 2.0 - margin
+    y_range = plane_height / 2.0 - margin
+    return _clamp(x, -x_range, x_range), _clamp(y, -y_range, y_range)
+
+
+def _sample_valid_world_position_array(mask_arr, plane_width, plane_height, margin):
+    """Sample a valid world position from a float32 mask array in [0..1]."""
+    if not isinstance(mask_arr, np.ndarray) or mask_arr.ndim != 2:
+        return 0.0, 0.0
+
+    probs = np.clip(mask_arr, 0.0, 1.0)
+    coords = np.argwhere(probs > 1e-3)
+    if coords.size == 0:
+        return 0.0, 0.0
+
+    weights = probs[coords[:, 0], coords[:, 1]].astype(np.float64)
+    wsum = float(weights.sum())
+    if not np.isfinite(wsum) or wsum <= 1e-12:
+        idx = random.randrange(len(coords))
+    else:
+        weights = weights / wsum
+        idx = int(np.random.choice(len(coords), p=weights))
+
+    py, px = int(coords[idx, 0]), int(coords[idx, 1])
+    h, w = probs.shape[:2]
 
     nx = px / max(w - 1, 1)
     ny = py / max(h - 1, 1)

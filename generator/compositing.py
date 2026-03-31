@@ -40,6 +40,7 @@ def composite_frames(
     fps=10,
     surface_group_masks=None,
     normals=None,
+    save_mask_previews=True,
 ):
     """Render all frames by compositing pest sprites onto the background image.
 
@@ -77,6 +78,7 @@ def composite_frames(
         plane_height:  World-space height of the scene.
         depth_map:     Optional (H, W) float32 depth array in metres.
         fps:           Frames per second (used for depth-aware speed cap).
+        save_mask_previews: Whether to save per-pest dynamic mask preview PNGs.
     """
     os.makedirs(frames_dir, exist_ok=True)
     os.makedirs(labels_dir, exist_ok=True)
@@ -118,7 +120,9 @@ def composite_frames(
             speed=speed,
             start_position=pest_cfg.get("start_position"),
             placement_mask_path=pest_cfg.get("placement_mask_path"),
+            placement_mask_array=pest_cfg.get("placement_mask_array"),
             surface_mask_paths=pest_cfg.get("surface_mask_paths"),
+            surface_mask_arrays=pest_cfg.get("surface_mask_arrays"),
             forward_axis=fwd_axis,
             max_step_world=max_step_world,
             depth_map=depth_map,
@@ -149,6 +153,14 @@ def composite_frames(
     mask_arrays = []
     surface_groups = tuple(surface_group_masks.keys()) if surface_group_masks is not None else ()
     for pest_cfg in pest_configs:
+        placement_arr = pest_cfg.get("placement_mask_array")
+        if isinstance(placement_arr, np.ndarray):
+            arr = np.clip(np.asarray(placement_arr, dtype=np.float32), 0.0, 1.0)
+            m = Image.fromarray((arr * 255).astype(np.uint8), mode="L").resize(
+                (render_width, render_height), Image.LANCZOS
+            )
+            mask_arrays.append(np.array(m, dtype=np.float32) / 255.0)
+            continue
         mpath = pest_cfg.get("placement_mask_path")
         if mpath and os.path.exists(mpath):
             m = Image.open(mpath).convert("L").resize(
@@ -161,6 +173,24 @@ def composite_frames(
     # render dimensions. Used for per-frame "pest vision" mask preview.
     _viz_dynamic_masks = []
     for pest_cfg in pest_configs:
+        surface_mask_arrays = pest_cfg.get("surface_mask_arrays") or {}
+        if isinstance(surface_mask_arrays, dict) and surface_mask_arrays:
+            dyn_viz = {}
+            for surf, arr in surface_mask_arrays.items():
+                try:
+                    arr = np.asarray(arr, dtype=np.float32)
+                except Exception:
+                    continue
+                if arr.ndim != 2:
+                    continue
+                arr = np.clip(arr, 0.0, 1.0)
+                m_pil = Image.fromarray((arr * 255).astype(np.uint8), mode="L").resize(
+                    (render_width, render_height), Image.LANCZOS
+                )
+                dyn_viz[surf] = np.array(m_pil, dtype=np.float32) / 255.0
+            _viz_dynamic_masks.append(dyn_viz if dyn_viz else None)
+            continue
+
         surface_mask_paths = pest_cfg.get("surface_mask_paths") or {}
         if surface_mask_paths:
             dyn_viz = {}
@@ -249,30 +279,31 @@ def composite_frames(
         frame_path = os.path.join(frames_dir, f"frame_{frame_num:04d}.png")
         frame_img.convert("RGB").save(frame_path)
 
-        # --- Per-pest dynamic "pest vision" mask preview ---
-        # Each pest gets its own preview: the movement probability mask for the
-        # surface it currently stands on, with a dot showing its position.
-        # The mask switches automatically when the pest crosses to a new surface.
-        for pest_idx, ((ptype, _sprite, pwalk, pw, ph), dyn_masks, mask_arr) in enumerate(
-            zip(pest_data, _viz_dynamic_masks, mask_arrays)
-        ):
-            wx, wy, _, surface = pwalk[frame_idx]
-            active_viz = dyn_masks.get(surface, mask_arr) if dyn_masks is not None else mask_arr
-            gray_u8 = (np.clip(active_viz, 0.0, 1.0) * 255).astype(np.uint8)
-            pest_mask_img = Image.fromarray(
-                np.stack([gray_u8, gray_u8, gray_u8], axis=-1), mode="RGB"
-            )
-            draw = ImageDraw.Draw(pest_mask_img)
-            pcx, pcy = _world_to_pixel(
-                wx, wy, render_width, render_height, plane_width, plane_height
-            )
-            r     = max(pw, ph) // 2 + 6
-            color = _DOT_COLORS.get(ptype, (255, 255, 0))
-            draw.ellipse([pcx - r, pcy - r, pcx + r, pcy + r], outline=color, width=3)
-            draw.ellipse([pcx - 5, pcy - 5, pcx + 5, pcy + 5], fill=color)
-            pest_mask_img.save(
-                os.path.join(frames_dir, f"mask_preview_pest{pest_idx}_{ptype}_{frame_num:04d}.png")
-            )
+        if save_mask_previews:
+            # --- Per-pest dynamic "pest vision" mask preview ---
+            # Each pest gets its own preview: the movement probability mask for the
+            # surface it currently stands on, with a dot showing its position.
+            # The mask switches automatically when the pest crosses to a new surface.
+            for pest_idx, ((ptype, _sprite, pwalk, pw, ph), dyn_masks, mask_arr) in enumerate(
+                zip(pest_data, _viz_dynamic_masks, mask_arrays)
+            ):
+                wx, wy, _, surface = pwalk[frame_idx]
+                active_viz = dyn_masks.get(surface, mask_arr) if dyn_masks is not None else mask_arr
+                gray_u8 = (np.clip(active_viz, 0.0, 1.0) * 255).astype(np.uint8)
+                pest_mask_img = Image.fromarray(
+                    np.stack([gray_u8, gray_u8, gray_u8], axis=-1), mode="RGB"
+                )
+                draw = ImageDraw.Draw(pest_mask_img)
+                pcx, pcy = _world_to_pixel(
+                    wx, wy, render_width, render_height, plane_width, plane_height
+                )
+                r     = max(pw, ph) // 2 + 6
+                color = _DOT_COLORS.get(ptype, (255, 255, 0))
+                draw.ellipse([pcx - r, pcy - r, pcx + r, pcy + r], outline=color, width=3)
+                draw.ellipse([pcx - 5, pcy - 5, pcx + 5, pcy + 5], fill=color)
+                pest_mask_img.save(
+                    os.path.join(frames_dir, f"mask_preview_pest{pest_idx}_{ptype}_{frame_num:04d}.png")
+                )
 
         coco_images.append({
             "id":        frame_num,

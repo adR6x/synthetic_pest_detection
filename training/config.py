@@ -1,41 +1,12 @@
-"""Training hyperparameters and label mapping for both ViT and DETR approaches."""
+"""Training hyperparameters and label mapping for DETR object detection."""
 
 import torch
-
-# ---------------------------------------------------------------------------
-# Shared label definitions
-# ---------------------------------------------------------------------------
-
-# ViT classification: string → index
-LABEL_MAP = {
-    "background": 0,
-    "mouse": 1,
-    "rat": 2,
-    "cockroach": 3,
-}
-NUM_CLASSES = len(LABEL_MAP)
-ID_TO_LABEL = {v: k for k, v in LABEL_MAP.items()}
 
 # DETR object detection: COCO category ID → name
 # Must match compositing.py _CATEGORY_MAP: mouse=1, rat=2, cockroach=3
 DETR_ID_TO_LABEL = {1: "mouse", 2: "rat", 3: "cockroach"}
 DETR_LABEL_TO_ID = {v: k for k, v in DETR_ID_TO_LABEL.items()}
 DETR_NUM_CLASSES = len(DETR_ID_TO_LABEL)
-
-# ---------------------------------------------------------------------------
-# ViT model settings
-# ---------------------------------------------------------------------------
-
-MODEL_NAME = "google/vit-base-patch16-224"
-INPUT_SIZE = 224
-
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
-
-BATCH_SIZE = 16
-LEARNING_RATE = 2e-5
-NUM_EPOCHS = 10
-WEIGHT_DECAY = 0.01
 
 # ---------------------------------------------------------------------------
 # DETR model settings

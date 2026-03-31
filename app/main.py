@@ -240,6 +240,10 @@ def _generate_video_for_image_with_params(
         num_frames=num_frames,
         fps=fps,
         assemble_video=assemble_video,
+        save_scene_previews=not use_real_outputs,
+        save_mask_previews=not use_real_outputs,
+        save_movement_masks=not use_real_outputs,
+        keep_only_frame_outputs=use_real_outputs,
     )
     rid = result.get("video_id") or result.get("job_id")
     if rid:
@@ -445,6 +449,19 @@ def _run_real_generation_batch(
     workers,
     generate_mp4,
 ):
+    def _ui_row(row):
+        return {
+            "job_id": row["job_id"],
+            "video_id": row["video_id"],
+            "kitchen_id": row["kitchen_id"],
+            "length_seconds": row["length_of_video_seconds"],
+            "fps": row["fps"],
+            "mouse_count": row["mouse_count"],
+            "rat_count": row["rat_count"],
+            "cockroach_count": row["cockroach_count"],
+            "render_time": row["time_taken_to_generate_seconds"],
+        }
+
     def _run_single(curated_filename):
         image_path = os.path.join(CURATED_IMG_DIR, curated_filename)
         t0 = time.time()
@@ -477,6 +494,7 @@ def _run_real_generation_batch(
 
     started_batch = time.time()
     rows = []
+    results_for_ui = []
     failures = []
 
     try:
@@ -488,7 +506,15 @@ def _run_real_generation_batch(
             for future in as_completed(future_map):
                 filename = future_map[future]
                 try:
-                    rows.append(future.result())
+                    row = future.result()
+                    rows.append(row)
+                    results_for_ui.append(_ui_row(row))
+                    # Persist each completed job immediately so generated_state.json
+                    # is always up to date while a batch is still running.
+                    try:
+                        _append_generated_state_rows([row])
+                    except Exception as e:
+                        failures.append(f"{filename}: failed writing generated_state.json: {e}")
                 except Exception as e:
                     failures.append(f"{filename}: {e}")
                 finally:
@@ -498,28 +524,10 @@ def _run_real_generation_batch(
                             batch["completed"] = int(batch.get("completed", 0)) + 1
                             batch["generated"] = len(rows)
                             batch["failures"] = list(failures)
-
-        if rows:
-            try:
-                _append_generated_state_rows(rows)
-            except Exception as e:
-                failures.append(f"Failed writing generated_state.json: {e}")
+                            batch["results"] = list(results_for_ui)
 
         rows.sort(key=lambda r: r["job_id"])
-        results_for_ui = [
-            {
-                "job_id": row["job_id"],
-                "video_id": row["video_id"],
-                "kitchen_id": row["kitchen_id"],
-                "length_seconds": row["length_of_video_seconds"],
-                "fps": row["fps"],
-                "mouse_count": row["mouse_count"],
-                "rat_count": row["rat_count"],
-                "cockroach_count": row["cockroach_count"],
-                "render_time": row["time_taken_to_generate_seconds"],
-            }
-            for row in rows
-        ]
+        results_for_ui.sort(key=lambda r: r["job_id"])
         batch_time = round(time.time() - started_batch, 2)
 
         with _real_batches_lock:

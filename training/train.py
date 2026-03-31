@@ -1,16 +1,12 @@
-"""Training entry point — supports DETR (default) and ViT (--mode vit).
+"""Training entry point for DETR object detection.
 
-DETR  (object detection, recommended):
+Usage:
     python -m training.train --data_dir outputs/dataset --epochs 20 --freeze_backbone
-
-ViT   (image classification, simpler baseline):
-    python -m training.train --mode vit
 """
 
 import argparse
 import csv
 import os
-import sys
 import time
 from pathlib import Path
 
@@ -19,72 +15,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from training.config import (
-    # shared
     get_device,
-    # ViT
-    BATCH_SIZE, LEARNING_RATE, NUM_EPOCHS, WEIGHT_DECAY,
-    # DETR
     DETR_BATCH_SIZE, DETR_NUM_EPOCHS, DETR_WEIGHT_DECAY, DETR_MODEL_NAME,
 )
-from training.dataset import PestDetectionDataset, CocoDetectionDETR, detr_collate_fn
-from training.model import create_model, create_detr_model, apply_freeze_strategy
-
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FRAMES_ROOT = os.path.join(PROJECT_ROOT, "outputs", "frames")
-LABELS_ROOT = os.path.join(PROJECT_ROOT, "outputs", "labels")
-
-
-# ---------------------------------------------------------------------------
-# ViT training (classification baseline)
-# ---------------------------------------------------------------------------
-
-def _vit_collate_fn(batch):
-    pixel_values = torch.stack([item["pixel_values"] for item in batch])
-    labels = torch.stack([item["label"] for item in batch])
-    bboxes = [item["bboxes"] for item in batch]
-    return {"pixel_values": pixel_values, "labels": labels, "bboxes": bboxes}
-
-
-def train_vit():
-    dataset = PestDetectionDataset(FRAMES_ROOT, LABELS_ROOT)
-    if len(dataset) == 0:
-        print("No training data found in outputs/frames/ and outputs/labels/.")
-        print("Generate data first via the web app.")
-        sys.exit(0)
-
-    print(f"ViT dataset: {len(dataset)} samples")
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True,
-                            collate_fn=_vit_collate_fn)
-
-    device = get_device()
-    print(f"Device: {device}")
-
-    model = create_model()
-    model.to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE,
-                                  weight_decay=WEIGHT_DECAY)
-    model.train()
-
-    for epoch in range(1, NUM_EPOCHS + 1):
-        total_loss = 0.0
-        correct = 0
-        total = 0
-        for batch in dataloader:
-            pv = batch["pixel_values"].to(device)
-            labels = batch["labels"].to(device)
-            outputs = model(pixel_values=pv, labels=labels)
-            loss = outputs.loss
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item() * labels.size(0)
-            preds = outputs.logits.argmax(dim=-1)
-            correct += (preds == labels).sum().item()
-            total += labels.size(0)
-        print(f"Epoch {epoch}/{NUM_EPOCHS} — "
-              f"Loss: {total_loss/total:.4f}, Accuracy: {correct/total:.4f}")
-
-    print("ViT training complete.")
+from training.dataset import CocoDetectionDETR, detr_collate_fn
+from training.model import create_detr_model, apply_freeze_strategy
 
 
 # ---------------------------------------------------------------------------
@@ -142,15 +77,11 @@ def _save_results_csv(csv_path, row):
 
 
 # ---------------------------------------------------------------------------
-# Main — DETR by default, ViT with --mode vit
+# Main
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="Train pest detection model")
-    parser.add_argument("--mode", choices=["detr", "vit"], default="detr",
-                        help="'detr' = object detection (default), 'vit' = classification")
-
-    # DETR args
     parser.add_argument("--model_name", default=DETR_MODEL_NAME)
     parser.add_argument("--data_dir", default=None,
                         help="Path to COCO dataset with images/ and annotations/ dirs")
@@ -166,11 +97,6 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    if args.mode == "vit":
-        train_vit()
-        return
-
-    # --- DETR ---
     import random
     import numpy as np
     random.seed(args.seed)

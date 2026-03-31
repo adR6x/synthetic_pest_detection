@@ -15,6 +15,7 @@ The web app has four tabs:
 - Configurable: length, fps, number of videos, optional MP4 output.
 - Progress bar + live polling + 5-row paginated results.
 - Writes metadata to `outputs/generated_state.json`.
+- Keeps only `frame_*.png` in each real job folder (aux previews/masks are pruned).
 
 3. `Kitchen Curator`
 - Review `uncurated_img/` images.
@@ -60,7 +61,7 @@ flask --app app.main run
 ```text
 outputs/
   uploads/                  # ad-hoc uploads
-  frames/{job_id}/          # rendered frames + previews
+  frames/{job_id}/          # rendered frames (test jobs may also include previews)
   labels/{job_id}/          # COCO annotations.json
   videos/{job_id}.mp4       # optional (if MP4 enabled)
   generated_state.json      # real-batch metadata state
@@ -158,14 +159,6 @@ Current split logic:
 ```bash
 python -m training.train --data_dir outputs/dataset --freeze_backbone
 ```
-
-### ViT mode
-
-```bash
-python -m training.train --mode vit
-```
-
-ViT mode currently trains directly from `outputs/frames` + `outputs/labels` without a dedicated train/val/test split step.
 
 ## Notes
 

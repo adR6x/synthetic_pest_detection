@@ -1,30 +1,13 @@
-"""Model factory functions for ViT (classification) and DETR (object detection)."""
+"""Model factory functions for DETR object detection."""
 
 from transformers import (
-    ViTForImageClassification,
     DetrForObjectDetection,
     DetrImageProcessor,
 )
 
 from training.config import (
-    MODEL_NAME, NUM_CLASSES, ID_TO_LABEL, LABEL_MAP,
     DETR_MODEL_NAME, DETR_NUM_CLASSES, DETR_ID_TO_LABEL, DETR_LABEL_TO_ID,
 )
-
-
-# ---------------------------------------------------------------------------
-# ViT — image classification (4 classes: background / mouse / rat / cockroach)
-# ---------------------------------------------------------------------------
-
-def create_model():
-    """Create a ViT model for pest classification."""
-    return ViTForImageClassification.from_pretrained(
-        MODEL_NAME,
-        num_labels=NUM_CLASSES,
-        id2label=ID_TO_LABEL,
-        label2id=LABEL_MAP,
-        ignore_mismatched_sizes=True,
-    )
 
 
 # ---------------------------------------------------------------------------

@@ -113,6 +113,10 @@ def generate_video(
     num_frames=None,
     fps=None,
     assemble_video=True,
+    save_scene_previews=True,
+    save_mask_previews=True,
+    save_movement_masks=True,
+    keep_only_frame_outputs=False,
 ):
     """Run the full generation pipeline for one kitchen image.
 
@@ -126,6 +130,11 @@ def generate_video(
         num_frames: Optional override for number of frames to render.
         fps: Optional override for video/compositing frame rate.
         assemble_video: Whether to assemble frame PNGs into an MP4.
+        save_scene_previews: Whether to save depth/surface/gravity preview images.
+        save_mask_previews: Whether to save per-frame pest mask preview images.
+        save_movement_masks: Whether to save per-surface movement mask PNGs.
+        keep_only_frame_outputs: If True, delete non-frame artifacts from frames_dir
+            after generation, keeping only frame_*.png.
 
     Returns:
         Dict with video_id/job_id, video_path, frames_dir, labels_dir,
@@ -200,9 +209,10 @@ def generate_video(
     focal_length_px   = metric3d_result["fx"]
     img_h, img_w      = depth_map.shape
 
-    save_depth_preview(depth_map, os.path.join(frames_dir, "depth_preview.jpg"))
-    save_surface_preview(predicted_normals, os.path.join(frames_dir, "surface_preview.jpg"))
-    save_gravity_preview(image_path, gravity_result, os.path.join(frames_dir, "gravity_preview.jpg"))
+    if save_scene_previews:
+        save_depth_preview(depth_map, os.path.join(frames_dir, "depth_preview.jpg"))
+        save_surface_preview(predicted_normals, os.path.join(frames_dir, "surface_preview.jpg"))
+        save_gravity_preview(image_path, gravity_result, os.path.join(frames_dir, "gravity_preview.jpg"))
     print(f"Gravity estimate: up={gravity_result['gravity_cam'].tolist()}  "
           f"conf={gravity_result['confidence']:.2f}")
 
@@ -252,24 +262,32 @@ def generate_video(
         # Build and save per-surface movement masks for this pest so simulation
         # can read the exact generated masks at runtime (fully mask-driven).
         surface_mask_paths = {}
+        surface_mask_arrays = {}
         for surface_name in groups:
             movement_prob = build_movement_mask(
                 surface_group_masks, surface_name, stickiness
             )
             movement_prob = np.clip(movement_prob * mask_brightness, 0.0, 1.0).astype(np.float32)
-            mask_filename = f"movement_mask_{pest_type}_{pest_idx}_{surface_name}.png"
-            mask_path = os.path.abspath(os.path.join(frames_dir, mask_filename))
-            save_movement_mask_preview(movement_prob, surface_name, mask_path)
-            surface_mask_paths[surface_name] = mask_path
+            surface_mask_arrays[surface_name] = movement_prob
+            if save_movement_masks:
+                mask_filename = f"movement_mask_{pest_type}_{pest_idx}_{surface_name}.png"
+                mask_path = os.path.abspath(os.path.join(frames_dir, mask_filename))
+                save_movement_mask_preview(movement_prob, surface_name, mask_path)
+                surface_mask_paths[surface_name] = mask_path
 
         # Keep a single default mask path (spawn surface) for fallback and compatibility.
         mask_path = surface_mask_paths.get(spawn_surface)
         if not mask_path and surface_mask_paths:
             mask_path = next(iter(surface_mask_paths.values()))
+        placement_mask_array = surface_mask_arrays.get(spawn_surface)
+        if placement_mask_array is None and surface_mask_arrays:
+            placement_mask_array = next(iter(surface_mask_arrays.values()))
 
         pest_cfg["start_position"]    = [float(start_position[0]), float(start_position[1])]
         pest_cfg["placement_mask_path"] = mask_path
         pest_cfg["surface_mask_paths"] = surface_mask_paths
+        pest_cfg["placement_mask_array"] = placement_mask_array
+        pest_cfg["surface_mask_arrays"] = surface_mask_arrays
 
         # Depth-based scale: apparent pixel width = real_size_m * fx / depth_m
         # => blender_scale = real_size_m * fx * PLANE_WIDTH / (depth_m * RENDER_WIDTH)
@@ -338,6 +356,7 @@ def generate_video(
         fps=effective_fps,
         surface_group_masks=surface_group_masks,
         normals=predicted_normals,
+        save_mask_previews=bool(save_mask_previews),
     )
     print(f"Compositing finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
 
@@ -346,6 +365,9 @@ def generate_video(
         _assemble_video(frames_dir, video_path, fps=effective_fps)
     else:
         video_path = None
+
+    if keep_only_frame_outputs:
+        _prune_auxiliary_frame_files(frames_dir)
 
     return {
         "video_id": job_id,
@@ -383,6 +405,26 @@ def _resolve_spawn_probs(spawn_probs):
     if sum(probs.values()) <= 1e-8:
         return dict(DEFAULT_SPAWN_PROBS)
     return probs
+
+
+def _prune_auxiliary_frame_files(frames_dir):
+    """Keep only rendered frame PNGs in frames_dir, remove generation artifacts."""
+    try:
+        names = os.listdir(frames_dir)
+    except OSError:
+        return
+
+    for name in names:
+        path = os.path.join(frames_dir, name)
+        if not os.path.isfile(path):
+            continue
+        is_frame_png = name.startswith("frame_") and name.endswith(".png")
+        if is_frame_png:
+            continue
+        try:
+            os.remove(path)
+        except OSError:
+            pass
 
 
 def _assemble_video(frames_dir, video_path, fps=FPS):
