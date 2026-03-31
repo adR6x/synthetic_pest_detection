@@ -12,6 +12,8 @@ generator/kitchen_img/*.webp
 generator/kitchen_img/*.bmp
 generator/kitchen_img/*.tif
 generator/kitchen_img/*.tiff
+generator/kitchen_img/download_state.json
+generator/kitchen_img/.curator_cache/
 
 # Local curated/generated 3D assets (never track binaries)
 generator/models/**

@@ -9,7 +9,11 @@
 <body>
     <div class="container">
         <h1>Synthetic Pest Video Generator</h1>
-        <p class="subtitle">Upload a kitchen image to generate synthetic pest detection training data.</p>
+
+        <div class="tabs">
+            <a class="tab {% if active_tab != 'curator' %}active{% endif %}" href="{{ url_for('index') }}">Generator</a>
+            <a class="tab {% if active_tab == 'curator' %}active{% endif %}" href="{{ url_for('curator') }}">Kitchen Curator</a>
+        </div>
 
         {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -21,7 +25,126 @@
         {% endif %}
         {% endwith %}
 
+        {% if active_tab == 'curator' %}
+        <p class="subtitle">Review kitchen images in <code>generator/kitchen_img</code>. Keep or delete each one.</p>
+
+        {% if curator_total and curator_current %}
+        <div class="curator-panel">
+            <p class="curator-meta">Image {{ curator_idx + 1 }} of {{ curator_total }}</p>
+            <p class="curator-filename">{{ curator_current }}</p>
+            <div class="curator-image-frame">
+                <img
+                    class="curator-image"
+                    src="{{ url_for('serve_kitchen_image', filename=curator_current) }}"
+                    alt="{{ curator_current }}"
+                >
+            </div>
+            {% if curator_analysis_error %}
+            <p class="curator-analysis-error">{{ curator_analysis_error }}</p>
+            {% endif %}
+            {% if curator_depth_preview_url or curator_surface_preview_url %}
+            <div class="curator-analysis-row">
+                {% if curator_depth_preview_url %}
+                <div class="curator-analysis-card">
+                    <p><strong>Predicted Depth</strong></p>
+                    <img src="{{ curator_depth_preview_url }}" alt="curator depth preview">
+                </div>
+                {% endif %}
+                {% if curator_surface_preview_url %}
+                <div class="curator-analysis-card">
+                    <p><strong>Surface Normals</strong></p>
+                    <img src="{{ curator_surface_preview_url }}" alt="curator surface normals preview">
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <form action="{{ url_for('curator_action') }}" method="post" class="curator-actions">
+                <input type="hidden" name="filename" value="{{ curator_current }}">
+                <input type="hidden" name="idx" value="{{ curator_idx }}">
+                <button type="submit" name="action" value="keep" class="btn">Keep & Next</button>
+                <button
+                    type="submit"
+                    name="action"
+                    value="delete"
+                    class="btn btn-danger"
+                    onclick="return confirm('Delete this image? It will also be marked as seen and never re-downloaded.')"
+                >
+                    Delete
+                </button>
+            </form>
+
+            <div class="curator-nav">
+                <a
+                    class="btn btn-muted {% if curator_idx <= 0 %}disabled-link{% endif %}"
+                    href="{{ url_for('curator', idx=curator_idx - 1) if curator_idx > 0 else '#' }}"
+                >
+                    Prev
+                </a>
+                <a
+                    class="btn btn-muted {% if curator_idx >= curator_total - 1 %}disabled-link{% endif %}"
+                    href="{{ url_for('curator', idx=curator_idx + 1) if curator_idx < curator_total - 1 else '#' }}"
+                >
+                    Next
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <p class="subtitle">No kitchen images found yet. Run the downloader first.</p>
+        {% endif %}
+
+        {% else %}
+        <p class="subtitle">Choose from your curated kitchens, or upload a new image.</p>
+
+        <div class="curated-picker">
+            <h3>Generate From Curated Kitchens</h3>
+            {% if curated_total and curated_page_images %}
+            <p class="curated-meta">
+                Showing {{ curated_page_images|length }} of {{ curated_total }}
+                (page {{ curated_page }} / {{ curated_total_pages }})
+            </p>
+            <div class="curated-grid">
+                {% for image_name in curated_page_images %}
+                <div class="curated-card">
+                    <div class="curated-card-frame">
+                        <img
+                            src="{{ url_for('serve_kitchen_image', filename=image_name) }}"
+                            alt="{{ image_name }}"
+                        >
+                    </div>
+                    <p class="curated-card-name">{{ image_name }}</p>
+                    <form action="{{ url_for('generate_from_curated') }}" method="post">
+                        <input type="hidden" name="filename" value="{{ image_name }}">
+                        <input type="hidden" name="page" value="{{ curated_page }}">
+                        <button type="submit" class="btn">Generate Video</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="curated-pagination">
+                <a
+                    class="btn btn-muted {% if not curated_has_prev %}disabled-link{% endif %}"
+                    href="{{ url_for('index', page=curated_prev_page) if curated_has_prev else '#' }}"
+                >
+                    Prev 5
+                </a>
+                <span class="curated-page-label">Page {{ curated_page }} / {{ curated_total_pages }}</span>
+                <a
+                    class="btn btn-muted {% if not curated_has_next %}disabled-link{% endif %}"
+                    href="{{ url_for('index', page=curated_next_page) if curated_has_next else '#' }}"
+                >
+                    Next 5
+                </a>
+            </div>
+            {% else %}
+            <p class="subtitle">No curated kitchen images found. Use the downloader and curator tab first.</p>
+            {% endif %}
+        </div>
+
+        <hr>
+        <p class="subtitle">Or Upload A New Kitchen Image</p>
         <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
+            <input type="hidden" name="page" value="{{ curated_page|default(1) }}">
             <label for="image" class="file-label" id="file-label">
                 Choose kitchen image
                 <input type="file" id="image" name="image" accept="image/*">
@@ -32,30 +155,32 @@
         <img id="preview" class="preview-img" style="display:none;" alt="preview">
 
         <script>
-            document.getElementById("image").addEventListener("change", function() {
-                const file = this.files[0];
-                const nameEl = document.getElementById("file-name");
-                const btn = document.getElementById("generate-btn");
-                const preview = document.getElementById("preview");
-                const label = document.getElementById("file-label");
-                if (file) {
-                    nameEl.textContent = file.name;
-                    btn.disabled = false;
-                    label.classList.add("file-selected");
-                    // Show thumbnail preview
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        preview.src = e.target.result;
-                        preview.style.display = "block";
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    nameEl.textContent = "";
-                    btn.disabled = true;
-                    label.classList.remove("file-selected");
-                    preview.style.display = "none";
-                }
-            });
+            const imageInput = document.getElementById("image");
+            if (imageInput) {
+                imageInput.addEventListener("change", function() {
+                    const file = this.files[0];
+                    const nameEl = document.getElementById("file-name");
+                    const btn = document.getElementById("generate-btn");
+                    const preview = document.getElementById("preview");
+                    const label = document.getElementById("file-label");
+                    if (file) {
+                        nameEl.textContent = file.name;
+                        btn.disabled = false;
+                        label.classList.add("file-selected");
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            preview.src = e.target.result;
+                            preview.style.display = "block";
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        nameEl.textContent = "";
+                        btn.disabled = true;
+                        label.classList.remove("file-selected");
+                        preview.style.display = "none";
+                    }
+                });
+            }
         </script>
 
         {% if job_id %}
@@ -131,9 +256,7 @@
                 "{{ frame }}",
                 {% endfor %}
             ];
-            // COCO-format labels: {filename: [{image_id, category_id, bbox:[x,y,w,h], ...}]}
             const labelsData = {{ labels_json|safe if labels_json else '{}' }};
-            // COCO categories: {"1": "mouse", "2": "rat", "3": "cockroach"}
             const categoriesData = {{ categories_json|safe if categories_json else '{}' }};
             const renderWidth = {{ render_width|default(640) }};
             const renderHeight = {{ render_height|default(480) }};
@@ -149,12 +272,10 @@
             const ctx = canvas.getContext("2d");
 
             function drawBboxes(frameIdx) {
-                // Use offsetWidth so the canvas matches the rendered video size.
-                // Fall back to renderWidth if the video hasn't laid out yet.
                 const video = document.getElementById("player");
-                const cw = video.offsetWidth  || renderWidth;
+                const cw = video.offsetWidth || renderWidth;
                 const ch = video.offsetHeight || renderHeight;
-                if (canvas.width !== cw)  canvas.width  = cw;
+                if (canvas.width !== cw) canvas.width = cw;
                 if (canvas.height !== ch) canvas.height = ch;
                 ctx.clearRect(0, 0, cw, ch);
 
@@ -186,7 +307,6 @@
                 }
             }
 
-            // Per-pest mask URL templates, indexed by pest number.
             const pestMaskTemplates = {
                 {% for pest in pest_mask_templates %}
                 {{ pest.pest_idx }}: "{{ pest.url_template }}",
@@ -194,7 +314,7 @@
             };
 
             function updatePestMasks(frameIdx) {
-                const frameNum = String(frameIdx + 1).padStart(4, '0');
+                const frameNum = String(frameIdx + 1).padStart(4, "0");
                 for (const [idx, tmpl] of Object.entries(pestMaskTemplates)) {
                     const img = document.getElementById("mask-pest" + idx);
                     if (img) img.src = tmpl.replace("NNNN", frameNum);
@@ -211,6 +331,7 @@
                 updatePestMasks(frameIdx);
             });
         </script>
+        {% endif %}
         {% endif %}
         {% endif %}
     </div>
