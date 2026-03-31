@@ -29,7 +29,7 @@ The web app has four tabs:
 
 ## Setup
 
-Requires Python 3.12+.
+Requires Python 3.10+ (Python 3.12 recommended).
 
 ### macOS / Linux / WSL
 

@@ -12,18 +12,22 @@ warn()    { echo -e "${YELLOW}[setup]${NC} $1"; }
 error()   { echo -e "${RED}[setup]${NC} $1"; exit 1; }
 
 # ─── Python ───────────────────────────────────────────────────────────────────
-info "Checking for Python 3.12+..."
+info "Checking for Python 3.10+..."
 PROJECT_PYTHON=""
 if command -v python3.12 &>/dev/null; then
     PROJECT_PYTHON="python3.12"
+elif command -v python3.11 &>/dev/null; then
+    PROJECT_PYTHON="python3.11"
+elif command -v python3.10 &>/dev/null; then
+    PROJECT_PYTHON="python3.10"
 elif command -v python3 &>/dev/null; then
-    if python3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 12) else 1)"; then
+    if python3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)"; then
         PROJECT_PYTHON="python3"
     fi
 fi
 
 if [ -z "$PROJECT_PYTHON" ]; then
-    error "Python 3.12+ not found. Install Python 3.12 and re-run."
+    error "Python 3.10+ not found. Install Python 3.10+ and re-run."
 fi
 
 PYTHON_VERSION=$($PROJECT_PYTHON -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')")
