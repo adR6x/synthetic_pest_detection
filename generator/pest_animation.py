@@ -38,15 +38,15 @@ def compute_walk(
 
     When surface_group_masks and normals are provided, the movement mask is
     determined dynamically each frame: the pest's current pixel is looked up
-    in the normals array to detect which surface group it's on (up/side/down),
-    and the corresponding blended mask is used for the probabilistic move check.
+    in the normals array to detect which surface group it's on, and the
+    corresponding blended mask is used for the probabilistic move check.
     This means a pest that crosses from floor to wall gets wall-appropriate
     movement constraints automatically.
 
     Returns:
         List of (wx, wy, angle_rad, surface) tuples, one per frame.
-        surface is "up", "side", or "down" — which surface the pest is on
-        at that frame, used by the compositing layer for mask visualisation.
+        surface is the active surface-group key at that frame, used by the
+        compositing layer for mask visualisation.
     """
     margin = 0.15
     x_range = plane_width / 2.0 - margin
@@ -58,15 +58,19 @@ def compute_walk(
     # Pre-compute one blended movement mask per surface group so we can switch
     # dynamically each frame without recomputing on the fly.
     _dynamic_masks = {}
+    _surface_groups = ()
     _norm_h = _norm_w = 0
     if surface_group_masks is not None and normals is not None:
+        _surface_groups = tuple(surface_group_masks.keys())
         _norm_h, _norm_w = normals.shape[:2]
         ow = (1.0 - surface_stickiness) ** 2          # other-surface weight
-        for surf in ("up", "side", "down"):
+        for surf in _surface_groups:
             same  = surface_group_masks[surf]
-            other = sum(
-                surface_group_masks[g] for g in ("up", "side", "down") if g != surf
-            ) / 2.0
+            other_groups = [g for g in _surface_groups if g != surf]
+            if other_groups:
+                other = sum(surface_group_masks[g] for g in other_groups) / float(len(other_groups))
+            else:
+                other = np.zeros_like(same, dtype=np.float32)
             m    = same + ow * other
             peak = float(m.max())
             _dynamic_masks[surf] = (m / peak if peak > 1e-6 else m).astype(np.float32)
@@ -112,13 +116,12 @@ def compute_walk(
         if _dynamic_masks and _norm_h > 0 and _norm_w > 0:
             nx_px = int(_clamp(round((x / plane_width + 0.5) * (_norm_w - 1)), 0, _norm_w - 1))
             ny_px = int(_clamp(round((0.5 - y / plane_height) * (_norm_h - 1)), 0, _norm_h - 1))
+            nx_val = float(normals[ny_px, nx_px, 0])
             ny_val = float(normals[ny_px, nx_px, 1])
-            if ny_val < -0.5:
-                current_surface = "up"
-            elif ny_val > 0.3:
-                current_surface = "down"
-            else:
-                current_surface = "side"
+            nz_val = float(normals[ny_px, nx_px, 2])
+            current_surface = _classify_surface_group(
+                nx_val, ny_val, nz_val, _surface_groups
+            )
         active_mask = _dynamic_masks.get(current_surface, placement_mask)
 
         # Record position, heading, and current surface for this frame.
@@ -236,6 +239,43 @@ def compute_walk(
 
 def _clamp(value, min_val, max_val):
     return max(min_val, min(max_val, value))
+
+
+def _classify_surface_group(nx, ny, nz, available_groups):
+    """Classify a normal into one of the available surface groups."""
+    available_groups = tuple(available_groups or ())
+    groups = set(available_groups)
+    nx = 0.0 if not np.isfinite(nx) else float(nx)
+    ny = 0.0 if not np.isfinite(ny) else float(ny)
+    nz = 0.0 if not np.isfinite(nz) else float(nz)
+
+    if "up" in groups and ny < -0.5:
+        return "up"
+    if "down" in groups and ny > 0.3:
+        return "down"
+
+    side_candidates = [g for g in available_groups if g not in {"up", "down"}]
+    if not side_candidates:
+        if "up" in groups:
+            return "up"
+        if "down" in groups:
+            return "down"
+        return available_groups[0] if available_groups else "up"
+
+    if "side" in groups and len(side_candidates) == 1:
+        return "side"
+
+    if "side_toward" in groups and nz > 0.15 and abs(nx) < 0.45:
+        return "side_toward"
+    if "side_right" in groups and "side_left" in groups:
+        return "side_right" if nx >= 0.0 else "side_left"
+    if "side_right" in groups and nx >= 0.0:
+        return "side_right"
+    if "side_left" in groups and nx < 0.0:
+        return "side_left"
+    if "side_toward" in groups:
+        return "side_toward"
+    return side_candidates[0]
 
 
 def _projected_step_from_depth(

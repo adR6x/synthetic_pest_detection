@@ -357,27 +357,24 @@ def _normal_coherence_map(normals):
 
 
 def build_surface_group_masks(normals):
-    """Build up/sideways/down surface probability maps from predicted normals.
+    """Build directional surface probability maps from predicted normals.
+    We split visible surfaces into:
+      - up:           floor/counters/shelves
+      - down:         ceiling/undersides
+      - side_left:    side surfaces with normals pointing camera-left
+      - side_right:   side surfaces with normals pointing camera-right
+      - side_toward:  side surfaces with normals pointing toward camera
 
-    Uses the estimated gravity vector (camera-space world-up direction) to
-    project each pixel's normal onto the true vertical axis.  This makes
-    surface classification correct regardless of camera tilt — a wall is
-    always "side-facing" even if the camera is looking slightly up or down.
-
-    Classification is based on dot(normal, gravity_cam):
-      - up:   dot >  0.5   → floor/counters   (normal aligned with world up)
-      - down: dot < -0.3   → ceiling/underside (normal opposes world up)
-      - side: |dot| < 0.35 → walls/cabinets   (normal perpendicular to gravity)
-
-    Each map is coherence-weighted so noisy edge regions are suppressed.
+    The side classes are built by first detecting "side-ness" (|ny| near 0),
+    then distributing that side probability among left/right/toward gates.
+    All maps are coherence-weighted so noisy edge regions are suppressed.
 
     Args:
-        normals:     (H, W, 3) float32 camera-space unit normals from Metric3D.
-        gravity_cam: (3,) unit vector pointing **up** in camera space,
-                     as returned by estimate_gravity()["gravity_cam"].
+        normals: (H, W, 3) float32 camera-space unit normals from Metric3D.
 
     Returns:
-        dict with keys "up", "side", "down", each a (H, W) float32 array [0..1].
+        dict with keys "up", "side_left", "side_right", "side_toward", "down".
+        Each value is a (H, W) float32 array in [0..1].
     """
     normals = np.array(normals, dtype=np.float32)
     normals = np.nan_to_num(normals, nan=0.0, posinf=0.0, neginf=0.0)
@@ -393,11 +390,14 @@ def build_surface_group_masks(normals):
     #   wall  (leftward)  → nx ≈ -1  → R channel ≈ 0   → cyan    ✓
     #   wall  (rightward) → nx ≈ +1  → R channel ≈ 255 → pink    ✓
     #
-    # Classification (all based on ny, independent of camera tilt):
+    # Vertical split:
     #   up:   ny < -0.5   → normal points world-up   (floor / counter / shelf)
     #   down: ny >  0.3   → normal points world-down (ceiling / underside)
-    #   side: |ny| < 0.35 → normal horizontal        (wall / cabinet face)
-    ny     = normals[:, :, 1]          # camera Y = image-down = world-up when negative
+    # Horizontal side split:
+    #   left/right from nx sign, toward-camera from nz sign.
+    nx = normals[:, :, 0]
+    ny = normals[:, :, 1]          # camera Y = image-down = world-up when negative
+    nz = normals[:, :, 2]
     abs_ny = np.abs(ny)
     coherence = _normal_coherence_map(normals)
 
@@ -411,24 +411,46 @@ def build_surface_group_masks(normals):
     # Down-facing: ny strongly positive (normal opposes world up).
     down = (_sig(ny,  center=0.3) * coherence).astype(np.float32)
 
-    # Side-facing: |ny| near zero — positively detected, not a residual.
-    # Perfect wall → |ny|≈0 → scores ~97%.  Floor → |ny|≈1 → scores <1%.
-    side = (_sig(0.35 - abs_ny, center=0.0) * coherence).astype(np.float32)
+    # Side-facing total probability: |ny| near zero.
+    side_total = _sig(0.35 - abs_ny, center=0.0)
 
-    return {"up": up, "side": side, "down": down}
+    # Split side surfaces into directional components.
+    # Positive nz corresponds to normals pointing toward the camera.
+    left_gate   = _sig(-nx, center=0.15)
+    right_gate  = _sig(nx, center=0.15)
+    toward_gate = _sig(nz, center=0.10)
+    gate_sum = np.clip(left_gate + right_gate + toward_gate, 1e-6, None)
 
+    side_left   = (side_total * (left_gate / gate_sum) * coherence).astype(np.float32)
+    side_right  = (side_total * (right_gate / gate_sum) * coherence).astype(np.float32)
+    side_toward = (side_total * (toward_gate / gate_sum) * coherence).astype(np.float32)
+
+    return {
+        "up": up,
+        "side_left": side_left,
+        "side_right": side_right,
+        "side_toward": side_toward,
+        "down": down,
+    }
 
 def classify_surface_group_at_pixel(normals, py, px):
-    """Return 'up', 'side', or 'down' for the dominant surface at pixel (py, px)."""
+    """Return dominant surface group at pixel (py, px)."""
+    nx = float(normals[py, px, 0])
     ny = float(normals[py, px, 1])
+    nz = float(normals[py, px, 2])
+    if np.isnan(nx):
+        nx = 0.0
     if np.isnan(ny):
         ny = 0.0
+    if np.isnan(nz):
+        nz = 0.0
     if ny < -0.5:
         return "up"
     if ny > 0.3:
         return "down"
-    return "side"
-
+    if nz > 0.15 and abs(nx) < 0.45:
+        return "side_toward"
+    return "side_right" if nx >= 0.0 else "side_left"
 
 def build_movement_mask(surface_group_masks, spawn_surface, stickiness):
     """Build a blended per-pest movement probability mask.
@@ -439,16 +461,25 @@ def build_movement_mask(surface_group_masks, spawn_surface, stickiness):
 
     Args:
         surface_group_masks: dict returned by build_surface_group_masks().
-        spawn_surface:       "up", "side", or "down".
+        spawn_surface:       Surface-group key present in surface_group_masks.
         stickiness:          float in [0, 1] — probability of staying on
                              the same surface group per frame.
 
     Returns:
         (H, W) float32 movement probability map in [0..1].
     """
+    groups = list(surface_group_masks.keys())
+    if not groups:
+        raise ValueError("surface_group_masks cannot be empty")
+    if spawn_surface not in surface_group_masks:
+        spawn_surface = groups[0]
+
     same  = surface_group_masks[spawn_surface]
-    other_groups = [g for g in ("up", "side", "down") if g != spawn_surface]
-    other = sum(surface_group_masks[g] for g in other_groups) / max(len(other_groups), 1)
+    other_groups = [g for g in groups if g != spawn_surface]
+    if other_groups:
+        other = sum(surface_group_masks[g] for g in other_groups) / float(len(other_groups))
+    else:
+        other = np.zeros_like(same, dtype=np.float32)
 
     # Use (1-stickiness)^2 so non-spawn surfaces are suppressed quadratically.
     # E.g. rat (0.99): other_weight=0.0001 → wall pixels get < 0.1% probability.

@@ -36,9 +36,19 @@ PEST_PARAMS = {
         "base_speed_wps": 0.4,
         "max_speed_wps": 1.5,
         # Spawn probability by surface orientation group.
-        # Groups: "up" = floors/counters (nz > 0.5), "side" = walls (nz ≈ 0),
-        #         "down" = ceilings/undersides (nz < -0.3).
-        "spawn_probs": {"up": 0.95, "side": 0.05, "down": 0.00},
+        # Groups:
+        #   "up"          floor / counter / shelf
+        #   "side_left"   wall whose normal points camera-left
+        #   "side_right"  wall whose normal points camera-right
+        #   "side_toward" wall/cabinet face whose normal points toward camera
+        #   "down"        ceiling / underside
+        "spawn_probs": {
+            "up": 0.95,
+            "side_left": 0.015,
+            "side_right": 0.015,
+            "side_toward": 0.02,
+            "down": 0.00,
+        },
         # Probability of staying on the same surface group per movement frame.
         "surface_stickiness": 0.97,
         "max_turn_deg": 3.0,
@@ -52,7 +62,13 @@ PEST_PARAMS = {
         "base_speed_wps": 0.3,
         "max_speed_wps": 1.0,
         # Rat is heavy — almost exclusively floor/counter bound.
-        "spawn_probs": {"up": 0.99, "side": 0.01, "down": 0.00},
+        "spawn_probs": {
+            "up": 0.99,
+            "side_left": 0.003,
+            "side_right": 0.003,
+            "side_toward": 0.004,
+            "down": 0.00,
+        },
         "surface_stickiness": 0.99,
         "max_turn_deg": 2.0,
     },
@@ -65,7 +81,13 @@ PEST_PARAMS = {
         "base_speed_wps": 0.6,
         "max_speed_wps": 1.5,
         # Cockroaches can walk on any surface — well-known wall/ceiling climbers.
-        "spawn_probs": {"up": 0.40, "side": 0.38, "down": 0.22},
+        "spawn_probs": {
+            "up": 0.40,
+            "side_left": 0.13,
+            "side_right": 0.13,
+            "side_toward": 0.12,
+            "down": 0.22,
+        },
         "surface_stickiness": 0.88,
         "max_turn_deg": 8.0,
     },

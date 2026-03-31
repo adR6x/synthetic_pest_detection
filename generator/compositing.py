@@ -137,6 +137,7 @@ def composite_frames(
     # Pre-load movement masks as numpy arrays for per-frame overlay rendering.
     _DOT_COLORS = {"mouse": (0, 220, 0), "rat": (255, 120, 0), "cockroach": (255, 30, 30)}
     mask_arrays = []
+    surface_groups = tuple(surface_group_masks.keys()) if surface_group_masks is not None else ()
     for pest_cfg in pest_configs:
         mpath = pest_cfg.get("placement_mask_path")
         if mpath and os.path.exists(mpath):
@@ -151,14 +152,16 @@ def composite_frames(
     _viz_dynamic_masks = []
     for pest_cfg in pest_configs:
         stickiness = float(pest_cfg["params"].get("surface_stickiness", 0.97))
-        if surface_group_masks is not None:
+        if surface_group_masks is not None and surface_groups:
             ow = (1.0 - stickiness) ** 2
             dyn_viz = {}
-            for surf in ("up", "side", "down"):
+            for surf in surface_groups:
                 same  = surface_group_masks[surf]
-                other = sum(
-                    surface_group_masks[g] for g in ("up", "side", "down") if g != surf
-                ) / 2.0
+                other_groups = [g for g in surface_groups if g != surf]
+                if other_groups:
+                    other = sum(surface_group_masks[g] for g in other_groups) / float(len(other_groups))
+                else:
+                    other = np.zeros_like(same, dtype=np.float32)
                 m     = same + ow * other
                 peak  = float(m.max())
                 m_norm = (m / peak if peak > 1e-6 else m).astype(np.float32)

@@ -46,6 +46,15 @@ from generator.depth_estimator import (
     sample_pest_positions_from_probability,
 )
 
+SURFACE_GROUPS = ("up", "side_left", "side_right", "side_toward", "down")
+DEFAULT_SPAWN_PROBS = {
+    "up": 0.78,
+    "side_left": 0.067,
+    "side_right": 0.067,
+    "side_toward": 0.066,
+    "down": 0.02,
+}
+
 
 def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, videos_root=None):
     """Run the full generation pipeline for one kitchen image.
@@ -118,21 +127,24 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
     print(f"Gravity estimate: up={gravity_result['gravity_cam'].tolist()}  "
           f"conf={gravity_result['confidence']:.2f}")
 
-    # Build the three surface-group probability maps once (shared across all pests).
+    # Build directional surface-group probability maps once (shared across pests).
     surface_group_masks = build_surface_group_masks(predicted_normals)
-
     for pest_idx, pest_cfg in enumerate(pest_configs):
         pest_type   = pest_cfg["type"]
         params      = pest_cfg["params"]
-        spawn_probs = params.get("spawn_probs", {"up": 0.78, "side": 0.20, "down": 0.02})
+        spawn_probs = _resolve_spawn_probs(params.get("spawn_probs"))
         stickiness  = float(params.get("surface_stickiness", 0.97))
 
         # Choose which surface group this pest spawns on (weighted random).
-        groups  = ["up", "side", "down"]
+        groups  = [g for g in SURFACE_GROUPS if g in surface_group_masks]
+        if not groups:
+            groups = list(surface_group_masks.keys())
         weights = [spawn_probs.get(g, 0.0) for g in groups]
         total_w = sum(weights)
         if total_w <= 0:
-            weights = [1.0, 0.0, 0.0]
+            weights = [1.0 if g == "up" else 0.0 for g in groups]
+        if sum(weights) <= 0:
+            weights = [1.0 / max(len(groups), 1)] * len(groups)
         spawn_surface = random.choices(groups, weights=weights)[0]
 
         # Sample start position from the chosen surface group's probability map.
@@ -204,6 +216,26 @@ def generate_video(image_path, job_id=None, frames_root=None, labels_root=None, 
         "frames_dir": frames_dir,
         "labels_dir": labels_dir,
     }
+
+
+def _resolve_spawn_probs(spawn_probs):
+    """Resolve spawn probabilities with backward compatibility for legacy 'side'."""
+    if not isinstance(spawn_probs, dict):
+        return dict(DEFAULT_SPAWN_PROBS)
+
+    probs = {g: max(float(spawn_probs.get(g, 0.0)), 0.0) for g in SURFACE_GROUPS}
+    side_groups = ("side_left", "side_right", "side_toward")
+    side_total = sum(probs[g] for g in side_groups)
+    legacy_side = max(float(spawn_probs.get("side", 0.0)), 0.0)
+
+    if side_total <= 1e-8 and legacy_side > 0.0:
+        split = legacy_side / len(side_groups)
+        for g in side_groups:
+            probs[g] = split
+
+    if sum(probs.values()) <= 1e-8:
+        return dict(DEFAULT_SPAWN_PROBS)
+    return probs
 
 
 def _assemble_video(frames_dir, video_path):
