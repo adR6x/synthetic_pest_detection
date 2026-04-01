@@ -125,6 +125,40 @@ $POETRY_CMD lock --no-interaction
 info "Installing project dependencies..."
 $POETRY_CMD install --no-interaction
 
+# ─── PyTorch / torchvision / timm (CUDA-aware) ───────────────────────────────
+# These are intentionally installed outside pyproject.toml so setup can choose
+# CPU-only wheels on machines without CUDA and avoid pulling large nvidia-* deps.
+info "Checking CUDA availability for PyTorch install..."
+CUDA_AVAILABLE=0
+if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+    CUDA_AVAILABLE=1
+fi
+
+if [ "$CUDA_AVAILABLE" -eq 1 ]; then
+    info "CUDA-capable GPU detected; installing default torch/torchvision wheels..."
+    $POETRY_CMD run pip install --upgrade torch torchvision
+else
+    info "No CUDA-capable GPU detected; installing CPU-only torch/torchvision wheels..."
+    $POETRY_CMD run pip uninstall -y torch torchvision >/dev/null 2>&1 || true
+    $POETRY_CMD run python - <<'PY'
+import importlib.metadata as m
+import subprocess
+import sys
+
+pkgs = sorted(
+    d.metadata["Name"]
+    for d in m.distributions()
+    if d.metadata["Name"] and d.metadata["Name"].lower().startswith("nvidia-")
+)
+if pkgs:
+    subprocess.check_call([sys.executable, "-m", "pip", "uninstall", "-y", *pkgs])
+PY
+    $POETRY_CMD run pip install --upgrade --index-url https://download.pytorch.org/whl/cpu torch torchvision
+fi
+
+info "Installing timm without re-resolving torch dependencies..."
+$POETRY_CMD run pip install --upgrade --no-deps timm
+
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 # mmcv cannot be pip-installed on Python 3.12 + PyTorch 2.7 because OpenMMLab
 # has not released pre-built wheels for this combination yet.  Metric3D v2 only

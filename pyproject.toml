@@ -8,9 +8,13 @@ package-mode = false
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
 flask = ">=3.0"
-torch = ">=2.0"
-torchvision = ">=0.15"
-timm = ">=0.9"
+# torch and torchvision are installed by setup scripts after checking CUDA
+# availability so CPU-only environments do not pull in large nvidia-* wheels.
+# torch = ">=2.0"
+# torchvision = ">=0.15"
+# timm is also installed by setup scripts after torch/torchvision because it
+# depends on both and would otherwise pull them back in transitively.
+# timm = ">=0.9"
 transformers = ">=4.30"
 opencv-python = ">=4.8"
 Pillow = ">=10.0"
