@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import base64
+import csv
 import hashlib
 import json
 import math
@@ -80,6 +81,7 @@ app.secret_key = "synthetic-pest-gen-dev-key"
 #   generator/kitchen_img/curated_img    (approved images)
 KITCHEN_ROOT_DIR = os.path.dirname(UNCURATED_IMG_DIR)
 CURATED_IMG_DIR = os.path.join(KITCHEN_ROOT_DIR, "curated_img")
+TRAIN_TEST_SPLIT_PATH = os.path.join(KITCHEN_ROOT_DIR, "test_train_split.csv")
 
 # Ensure output directories exist
 for d in [
@@ -233,16 +235,19 @@ def _generate_video_for_image_with_params(
     fps,
     use_real_outputs=False,
     assemble_video=True,
+    frames_root=None,
+    labels_root=None,
+    videos_root=None,
 ):
     t0 = time.time()
-    frames_root = REAL_FRAMES_DIR if use_real_outputs else FRAMES_DIR
-    labels_root = REAL_LABELS_DIR if use_real_outputs else LABELS_DIR
-    videos_root = REAL_VIDEOS_DIR if use_real_outputs else VIDEOS_DIR
+    resolved_frames_root = frames_root or (REAL_FRAMES_DIR if use_real_outputs else FRAMES_DIR)
+    resolved_labels_root = labels_root or (REAL_LABELS_DIR if use_real_outputs else LABELS_DIR)
+    resolved_videos_root = videos_root or (REAL_VIDEOS_DIR if use_real_outputs else VIDEOS_DIR)
     result = generate_video(
         image_path,
-        frames_root=frames_root,
-        labels_root=labels_root,
-        videos_root=videos_root,
+        frames_root=resolved_frames_root,
+        labels_root=resolved_labels_root,
+        videos_root=resolved_videos_root,
         num_frames=num_frames,
         fps=fps,
         assemble_video=assemble_video,
@@ -340,6 +345,42 @@ def _allocate_kitchen_filename(ext):
 
 def _kitchen_image_id(filename):
     return os.path.basename(filename)
+
+
+def _load_train_test_split():
+    if not os.path.exists(TRAIN_TEST_SPLIT_PATH):
+        raise FileNotFoundError(
+            f"Missing split file: {TRAIN_TEST_SPLIT_PATH}. "
+            "Generate it with generator/kitchen_img/test_train_split.py."
+        )
+
+    split_map = {}
+    with open(TRAIN_TEST_SPLIT_PATH, "r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames != ["id", "train"]:
+            raise ValueError(
+                f"{TRAIN_TEST_SPLIT_PATH} must have exactly these columns: id, train"
+            )
+        for row in reader:
+            kitchen_id = (row.get("id") or "").strip()
+            train_flag = (row.get("train") or "").strip()
+            if not kitchen_id:
+                continue
+            if train_flag not in {"0", "1"}:
+                raise ValueError(
+                    f"Invalid train flag for {kitchen_id!r}: {train_flag!r}. Expected 0 or 1."
+                )
+            split_map[kitchen_id] = "train" if train_flag == "1" else "test"
+    return split_map
+
+
+def _real_output_roots_for_split(split_name):
+    split_root = os.path.join(PROJECT_OUTPUT_DIR, split_name)
+    return {
+        "frames_root": os.path.join(split_root, "frames"),
+        "labels_root": os.path.join(split_root, "labels"),
+        "videos_root": os.path.join(split_root, "videos"),
+    }
 
 
 def _real_worker_count(target_count):
@@ -460,6 +501,7 @@ def _get_real_batch_snapshot(batch_id):
 def _run_real_generation_batch(
     batch_id,
     selected_filenames,
+    split_map,
     length_seconds,
     fps,
     num_frames,
@@ -471,6 +513,7 @@ def _run_real_generation_batch(
             "job_id": row["job_id"],
             "video_id": row["video_id"],
             "kitchen_id": row["kitchen_id"],
+            "split": row["split"],
             "length_seconds": row["length_of_video_seconds"],
             "fps": row["fps"],
             "mouse_count": row["mouse_count"],
@@ -481,6 +524,14 @@ def _run_real_generation_batch(
 
     def _run_single(curated_filename):
         image_path = os.path.join(CURATED_IMG_DIR, curated_filename)
+        kitchen_id = _kitchen_image_id(curated_filename)
+        split_name = split_map.get(kitchen_id)
+        if split_name not in {"train", "test"}:
+            raise ValueError(
+                f"Kitchen {kitchen_id} is missing from {TRAIN_TEST_SPLIT_PATH}. "
+                "Regenerate the split file before running the real generator."
+            )
+        output_roots = _real_output_roots_for_split(split_name)
         t0 = time.time()
         result = _generate_video_for_image_with_params(
             image_path,
@@ -488,6 +539,9 @@ def _run_real_generation_batch(
             fps=fps,
             use_real_outputs=True,
             assemble_video=generate_mp4,
+            frames_root=output_roots["frames_root"],
+            labels_root=output_roots["labels_root"],
+            videos_root=output_roots["videos_root"],
         )
         elapsed = round(time.time() - t0, 2)
         generated_at = datetime.now().isoformat(timespec="seconds")
@@ -497,7 +551,8 @@ def _run_real_generation_batch(
         return {
             "job_id": video_id,
             "video_id": video_id,
-            "kitchen_id": _kitchen_image_id(curated_filename),
+            "kitchen_id": kitchen_id,
+            "split": split_name,
             "length_of_video_seconds": round(length_seconds, 2),
             "fps": fps,
             "mouse_count": int(pest_counts.get("mouse", 0)),
@@ -507,6 +562,9 @@ def _run_real_generation_batch(
             "time_taken_to_generate_seconds": elapsed,
             "pest_size_multiplier": float(result.get("pest_size_multiplier", 1.0)),
             "pest_generation_metadata": pest_generation_metadata,
+            "frames_dir": result.get("frames_dir"),
+            "labels_dir": result.get("labels_dir"),
+            "video_path": result.get("video_path"),
         }
 
     started_batch = time.time()
@@ -905,6 +963,21 @@ def real_generator_generate():
     # Sampling with replacement lets us request more videos than unique kitchens.
     selected_filenames = random.choices(pool, k=target_videos)
     num_frames = max(1, int(round(length_seconds * fps)))
+    try:
+        split_map = _load_train_test_split()
+    except (OSError, ValueError) as e:
+        flash(f"Could not load train/test split: {e}")
+        return redirect(url_for("real_generator", rpage=page))
+    missing_kitchens = sorted(
+        {name for name in selected_filenames if _kitchen_image_id(name) not in split_map}
+    )
+    if missing_kitchens:
+        flash(
+            "Missing train/test split assignment for: "
+            + ", ".join(missing_kitchens[:5])
+            + (" ..." if len(missing_kitchens) > 5 else "")
+        )
+        return redirect(url_for("real_generator", rpage=page))
 
     workers = _real_worker_count(target_videos)
     batch_id = uuid.uuid4().hex[:10]
@@ -937,6 +1010,7 @@ def real_generator_generate():
         args=(
             batch_id,
             selected_filenames,
+            split_map,
             length_seconds,
             fps,
             num_frames,

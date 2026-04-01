@@ -76,7 +76,7 @@
                         value="1"
                         {% if real_form_values and real_form_values.generate_mp4 %}checked{% endif %}
                     >
-                    <span>Also generate MP4 files in <code>outputs/videos/</code></span>
+                    <span>Also generate MP4 files in <code>outputs/train/videos/</code> or <code>outputs/test/videos/</code></span>
                 </label>
 
                 {% if real_curated_total %}
@@ -214,9 +214,9 @@
                 }
 
                 if (state.generate_mp4) {
-                    storageNoteEl.innerHTML = "Outputs are written to <code>outputs/frames</code>, <code>outputs/labels</code>, and <code>outputs/videos</code>.";
+                    storageNoteEl.innerHTML = "Outputs are written to split-specific directories under <code>outputs/train/</code> and <code>outputs/test/</code>, including <code>frames</code>, <code>labels</code>, and <code>videos</code>.";
                 } else {
-                    storageNoteEl.innerHTML = "No MP4 is generated in this batch. Training data is written to <code>outputs/frames</code> and <code>outputs/labels</code>.";
+                    storageNoteEl.innerHTML = "No MP4 is generated in this batch. Training data is written to split-specific <code>outputs/train/</code> and <code>outputs/test/</code> frame and label directories.";
                 }
             }
 
