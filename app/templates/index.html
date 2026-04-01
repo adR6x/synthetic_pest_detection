@@ -605,6 +605,34 @@
         {% else %}
         <p class="subtitle">Test Video Generator: choose from your curated kitchens, or upload a new image.</p>
 
+        <div class="realgen-panel">
+            <form onsubmit="return false;" class="realgen-form">
+                <div class="realgen-row">
+                    <label class="realgen-field">
+                        <span>Length (seconds)</span>
+                        <input
+                            id="test-length-seconds"
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            value="{{ test_form_values.length_seconds if test_form_values else 30 }}"
+                            required
+                        >
+                    </label>
+                    <label class="realgen-field">
+                        <span>FPS</span>
+                        <input
+                            id="test-fps"
+                            type="number"
+                            min="1"
+                            value="{{ test_form_values.fps if test_form_values else 10 }}"
+                            required
+                        >
+                    </label>
+                </div>
+            </form>
+        </div>
+
         <div class="curated-picker">
             <h3>Generate From Curated Kitchens</h3>
             {% if curated_total and curated_page_images %}
@@ -622,9 +650,11 @@
                         >
                     </div>
                     <p class="curated-card-name">{{ image_name }}</p>
-                    <form action="{{ url_for('generate_from_curated') }}" method="post">
+                    <form action="{{ url_for('generate_from_curated') }}" method="post" class="testgen-submit">
                         <input type="hidden" name="filename" value="{{ image_name }}">
                         <input type="hidden" name="page" value="{{ curated_page }}">
+                        <input type="hidden" name="length_seconds" class="testgen-length-input" value="{{ test_form_values.length_seconds if test_form_values else 30 }}">
+                        <input type="hidden" name="fps" class="testgen-fps-input" value="{{ test_form_values.fps if test_form_values else 10 }}">
                         <button type="submit" class="btn">Generate Video</button>
                     </form>
                 </div>
@@ -652,8 +682,10 @@
 
         <hr>
         <p class="subtitle">Or Upload A New Kitchen Image</p>
-        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form">
+        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form testgen-submit">
             <input type="hidden" name="page" value="{{ curated_page|default(1) }}">
+            <input type="hidden" name="length_seconds" class="testgen-length-input" value="{{ test_form_values.length_seconds if test_form_values else 30 }}">
+            <input type="hidden" name="fps" class="testgen-fps-input" value="{{ test_form_values.fps if test_form_values else 10 }}">
             <label for="image" class="file-label" id="file-label">
                 Choose kitchen image
                 <input type="file" id="image" name="image" accept="image/*">
@@ -664,6 +696,27 @@
         <img id="preview" class="preview-img" style="display:none;" alt="preview">
 
         <script>
+            (function() {
+                const lengthInput = document.getElementById("test-length-seconds");
+                const fpsInput = document.getElementById("test-fps");
+                const lengthTargets = document.querySelectorAll(".testgen-length-input");
+                const fpsTargets = document.querySelectorAll(".testgen-fps-input");
+                const forms = document.querySelectorAll("form.testgen-submit");
+
+                function syncConfig() {
+                    if (!lengthInput || !fpsInput) return;
+                    const lengthVal = lengthInput.value || "30";
+                    const fpsVal = fpsInput.value || "10";
+                    lengthTargets.forEach((el) => { el.value = lengthVal; });
+                    fpsTargets.forEach((el) => { el.value = fpsVal; });
+                }
+
+                syncConfig();
+                if (lengthInput) lengthInput.addEventListener("input", syncConfig);
+                if (fpsInput) fpsInput.addEventListener("input", syncConfig);
+                forms.forEach((form) => form.addEventListener("submit", syncConfig));
+            })();
+
             const imageInput = document.getElementById("image");
             if (imageInput) {
                 imageInput.addEventListener("change", function() {
@@ -700,6 +753,9 @@
         {% endif %}
 
         <form action="{{ url_for('regenerate', job_id=job_id) }}" method="post" style="margin-bottom:16px;">
+            <input type="hidden" name="page" value="{{ curated_page|default(1) }}">
+            <input type="hidden" name="length_seconds" value="{{ test_form_values.length_seconds if test_form_values else 30 }}">
+            <input type="hidden" name="fps" value="{{ test_form_values.fps if test_form_values else 10 }}">
             <button type="submit" class="btn">&#x21BA; Regenerate with Same Image</button>
         </form>
 
@@ -769,7 +825,7 @@
             const categoriesData = {{ categories_json|safe if categories_json else '{}' }};
             const renderWidth = {{ render_width|default(640) }};
             const renderHeight = {{ render_height|default(480) }};
-            const FPS = 10;
+            const FPS = {{ playback_fps|default(10) }};
 
             const PEST_COLORS = {
                 "mouse": "#00ff00",

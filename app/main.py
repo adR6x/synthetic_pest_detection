@@ -107,6 +107,8 @@ os.makedirs(CURATOR_PREVIEW_DIR, exist_ok=True)
 _render_times = {}
 # Stores the source image path used for each job so regeneration doesn't need a re-upload
 _source_images = {}
+# Stores effective fps keyed by job_id so result playback overlays stay in sync
+_job_fps = {}
 # Tracks background download status
 _download_status = {
     "running": False,
@@ -218,6 +220,10 @@ def _generate_video_for_image(image_path):
     if rid:
         _render_times[rid] = round(time.time() - t0, 1)
         _source_images[rid] = image_path
+        try:
+            _job_fps[rid] = int(result.get("fps", 10))
+        except (TypeError, ValueError):
+            _job_fps[rid] = 10
     return result
 
 
@@ -250,14 +256,24 @@ def _generate_video_for_image_with_params(
     if rid:
         _render_times[rid] = round(time.time() - t0, 1)
         _source_images[rid] = image_path
+        try:
+            _job_fps[rid] = int(result.get("fps", fps))
+        except (TypeError, ValueError):
+            _job_fps[rid] = int(fps)
     return result
 
 
 def _render_generate_page(job_context=None):
     page = _parse_positive_int(request.args.get("page", 1), default=1)
+    test_length_seconds = _parse_positive_float(request.args.get("length_seconds"), default=30.0)
+    test_fps = _parse_positive_int(request.args.get("fps"), default=10)
     curated = _get_curated_page(page)
     context = {
         "active_tab": "generate",
+        "test_form_values": {
+            "length_seconds": round(test_length_seconds, 2),
+            "fps": test_fps,
+        },
         "curated_page_images": curated["images"],
         "curated_page": curated["page"],
         "curated_total": curated["total"],
@@ -651,44 +667,63 @@ def upload():
         flash("Please upload a valid image file (PNG, JPG, BMP, WEBP).")
         return redirect(url_for("index"))
 
+    page = _parse_positive_int(request.form.get("page", 1), default=1)
+    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=30.0)
+    fps = _parse_positive_int(request.form.get("fps"), default=10)
+    num_frames = max(1, int(round(length_seconds * fps)))
+
     filename = file.filename
     save_path = os.path.join(UPLOAD_DIR, filename)
     file.save(save_path)
-    page = _parse_positive_int(request.form.get("page", 1), default=1)
 
     try:
-        result = _generate_video_for_image(save_path)
+        result = _generate_video_for_image_with_params(
+            save_path,
+            num_frames=num_frames,
+            fps=fps,
+            use_real_outputs=False,
+            assemble_video=True,
+        )
     except Exception as e:
         flash(f"Generation failed: {e}")
-        return redirect(url_for("index", page=page))
+        return redirect(url_for("index", page=page, length_seconds=length_seconds, fps=fps))
 
     rid = result.get("video_id") or result.get("job_id")
-    return redirect(url_for("results", job_id=rid, page=page))
+    return redirect(url_for("results", job_id=rid, page=page, length_seconds=length_seconds, fps=fps))
 
 
 @app.route("/generate/curated", methods=["POST"])
 def generate_from_curated():
     filename = (request.form.get("filename") or "").strip()
     page = _parse_positive_int(request.form.get("page", 1), default=1)
+    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=30.0)
+    fps = _parse_positive_int(request.form.get("fps"), default=10)
+    num_frames = max(1, int(round(length_seconds * fps)))
 
     images = list_curated_images()
     if not filename or filename not in images:
         flash("Selected curated image was not found.")
-        return redirect(url_for("index", page=page))
+        return redirect(url_for("index", page=page, length_seconds=length_seconds, fps=fps))
 
     image_path = os.path.join(CURATED_IMG_DIR, filename)
     if not os.path.exists(image_path):
         flash(f"Image file not found: {filename}")
-        return redirect(url_for("index", page=page))
+        return redirect(url_for("index", page=page, length_seconds=length_seconds, fps=fps))
 
     try:
-        result = _generate_video_for_image(image_path)
+        result = _generate_video_for_image_with_params(
+            image_path,
+            num_frames=num_frames,
+            fps=fps,
+            use_real_outputs=False,
+            assemble_video=True,
+        )
     except Exception as e:
         flash(f"Generation failed for {filename}: {e}")
-        return redirect(url_for("index", page=page))
+        return redirect(url_for("index", page=page, length_seconds=length_seconds, fps=fps))
 
     rid = result.get("video_id") or result.get("job_id")
-    return redirect(url_for("results", job_id=rid, page=page))
+    return redirect(url_for("results", job_id=rid, page=page, length_seconds=length_seconds, fps=fps))
 
 
 @app.route("/results/<job_id>")
@@ -772,6 +807,7 @@ def results(job_id):
         "categories_json": json.dumps(categories_by_id),
         "render_width": render_width,
         "render_height": render_height,
+        "playback_fps": _job_fps.get(job_id, 10),
         "render_time": _render_times.get(job_id),
     })
 
@@ -1303,27 +1339,33 @@ def kitchen_generator_discard():
 @app.route("/regenerate/<job_id>", methods=["POST"])
 def regenerate(job_id):
     image_path = _source_images.get(job_id)
+    page = _parse_positive_int(request.form.get("page", 1), default=1)
+    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=30.0)
+    fps = _parse_positive_int(request.form.get("fps"), default=10)
+    num_frames = max(1, int(round(length_seconds * fps)))
     if not image_path or not os.path.exists(image_path):
         flash("Source image no longer available — please upload again.")
-        return redirect(url_for("index"))
+        return redirect(url_for("index", page=page, length_seconds=length_seconds, fps=fps))
 
     try:
-        t0 = time.time()
-        result = generate_video(
+        result = _generate_video_for_image_with_params(
             image_path,
-            frames_root=FRAMES_DIR,
-            labels_root=LABELS_DIR,
-            videos_root=VIDEOS_DIR,
+            num_frames=num_frames,
+            fps=fps,
+            use_real_outputs=False,
+            assemble_video=True,
         )
-        rid = result.get("video_id") or result.get("job_id")
-        if rid:
-            _render_times[rid] = round(time.time() - t0, 1)
-            _source_images[rid] = image_path
     except Exception as e:
         flash(f"Regeneration failed: {e}")
-        return redirect(url_for("results", job_id=job_id))
+        return redirect(url_for("results", job_id=job_id, page=page, length_seconds=length_seconds, fps=fps))
 
-    return redirect(url_for("results", job_id=(result.get("video_id") or result.get("job_id"))))
+    return redirect(url_for(
+        "results",
+        job_id=(result.get("video_id") or result.get("job_id")),
+        page=page,
+        length_seconds=length_seconds,
+        fps=fps,
+    ))
 
 
 @app.route("/outputs/videos/<job_id>.mp4")
