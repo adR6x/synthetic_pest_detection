@@ -8,6 +8,9 @@
 
 # Outputs
 outputs/
+!outputs/
+outputs/*
+!outputs/generated_state.json
 
 # Kitchen image downloads (keep scripts, ignore binaries)
 generator/kitchen_img/*.jpg

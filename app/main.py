@@ -558,7 +558,6 @@ def _run_real_generation_batch(
             "video_id": video_id,
             "kitchen_id": kitchen_id,
             "split": split_name,
-            "train": 1 if split_name == "train" else 0,
             "length_of_video_seconds": round(length_seconds, 2),
             "fps": fps,
             "mouse_count": int(pest_counts.get("mouse", 0)),
@@ -568,8 +567,8 @@ def _run_real_generation_batch(
             "time_taken_to_generate_seconds": elapsed,
             "pest_size_multiplier": float(result.get("pest_size_multiplier", 1.0)),
             "pest_generation_metadata": pest_generation_metadata,
-            "frames_dir": result.get("frames_dir"),
-            "labels_dir": result.get("labels_dir"),
+            "frames_dir": os.path.join("outputs", split_name, "frames", video_id),
+            "labels_dir": os.path.join("outputs", split_name, "labels", video_id),
             "video_path": result.get("video_path"),
         }
 

@@ -1,0 +1,2537 @@
+{
+  "generated_videos": [
+    {
+      "job_id": "70a333ce",
+      "video_id": "70a333ce",
+      "kitchen_id": "kitchen_0070.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 1,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:39:22",
+      "time_taken_to_generate_seconds": 32.36,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "rat",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0648,
+          "approx_initial_pixel_width": 41.47,
+          "initial_position_image_px": {
+            "x": 363,
+            "y": 467
+          },
+          "initial_position_image_norm": {
+            "x": 0.568075,
+            "y": 0.974948
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/70a333ce",
+      "labels_dir": "outputs/train/labels/70a333ce"
+    },
+    {
+      "job_id": "89631dbf",
+      "video_id": "89631dbf",
+      "kitchen_id": "kitchen_0059.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:39:26",
+      "time_taken_to_generate_seconds": 36.51,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/89631dbf",
+      "labels_dir": "outputs/test/labels/89631dbf"
+    },
+    {
+      "job_id": "8d42b59c",
+      "video_id": "8d42b59c",
+      "kitchen_id": "kitchen_0015.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:40:00",
+      "time_taken_to_generate_seconds": 37.57,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/8d42b59c",
+      "labels_dir": "outputs/test/labels/8d42b59c"
+    },
+    {
+      "job_id": "4ddb76bf",
+      "video_id": "4ddb76bf",
+      "kitchen_id": "kitchen_0053.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:40:07",
+      "time_taken_to_generate_seconds": 40.63,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 439,
+            "y": 282
+          },
+          "initial_position_image_norm": {
+            "x": 0.687011,
+            "y": 0.588727
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 479,
+            "y": 56
+          },
+          "initial_position_image_norm": {
+            "x": 0.749609,
+            "y": 0.11691
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/4ddb76bf",
+      "labels_dir": "outputs/train/labels/4ddb76bf"
+    },
+    {
+      "job_id": "b6bc4da4",
+      "video_id": "b6bc4da4",
+      "kitchen_id": "kitchen_0008.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:40:42",
+      "time_taken_to_generate_seconds": 35.23,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 233,
+            "y": 216
+          },
+          "initial_position_image_norm": {
+            "x": 0.364632,
+            "y": 0.450939
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/b6bc4da4",
+      "labels_dir": "outputs/train/labels/b6bc4da4"
+    },
+    {
+      "job_id": "2e533d32",
+      "video_id": "2e533d32",
+      "kitchen_id": "kitchen_0020.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 3,
+      "date_time_generated": "2026-03-31T19:40:44",
+      "time_taken_to_generate_seconds": 44.55,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 238,
+            "y": 240
+          },
+          "initial_position_image_norm": {
+            "x": 0.372457,
+            "y": 0.501044
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 73,
+            "y": 205
+          },
+          "initial_position_image_norm": {
+            "x": 0.114241,
+            "y": 0.427975
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 486,
+            "y": 79
+          },
+          "initial_position_image_norm": {
+            "x": 0.760563,
+            "y": 0.164927
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/2e533d32",
+      "labels_dir": "outputs/train/labels/2e533d32"
+    },
+    {
+      "job_id": "f894de7c",
+      "video_id": "f894de7c",
+      "kitchen_id": "kitchen_0013.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:41:25",
+      "time_taken_to_generate_seconds": 42.42,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 383,
+            "y": 467
+          },
+          "initial_position_image_norm": {
+            "x": 0.599374,
+            "y": 0.974948
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/f894de7c",
+      "labels_dir": "outputs/train/labels/f894de7c"
+    },
+    {
+      "job_id": "e2259eae",
+      "video_id": "e2259eae",
+      "kitchen_id": "kitchen_0007.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:41:28",
+      "time_taken_to_generate_seconds": 43.31,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 489,
+            "y": 66
+          },
+          "initial_position_image_norm": {
+            "x": 0.765258,
+            "y": 0.137787
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 566,
+            "y": 332
+          },
+          "initial_position_image_norm": {
+            "x": 0.885759,
+            "y": 0.693111
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 459,
+            "y": 411
+          },
+          "initial_position_image_norm": {
+            "x": 0.71831,
+            "y": 0.858038
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/e2259eae",
+      "labels_dir": "outputs/train/labels/e2259eae"
+    },
+    {
+      "job_id": "6df6d15e",
+      "video_id": "6df6d15e",
+      "kitchen_id": "kitchen_0051.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 2,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:42:08",
+      "time_taken_to_generate_seconds": 43.56,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 195,
+            "y": 346
+          },
+          "initial_position_image_norm": {
+            "x": 0.305164,
+            "y": 0.722338
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 268,
+            "y": 286
+          },
+          "initial_position_image_norm": {
+            "x": 0.419405,
+            "y": 0.597077
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/6df6d15e",
+      "labels_dir": "outputs/train/labels/6df6d15e"
+    },
+    {
+      "job_id": "d44c64f7",
+      "video_id": "d44c64f7",
+      "kitchen_id": "kitchen_0050.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:42:10",
+      "time_taken_to_generate_seconds": 42.46,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/d44c64f7",
+      "labels_dir": "outputs/train/labels/d44c64f7"
+    },
+    {
+      "job_id": "4781385f",
+      "video_id": "4781385f",
+      "kitchen_id": "kitchen_0042.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:42:50",
+      "time_taken_to_generate_seconds": 41.56,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/4781385f",
+      "labels_dir": "outputs/train/labels/4781385f"
+    },
+    {
+      "job_id": "0fb978b9",
+      "video_id": "0fb978b9",
+      "kitchen_id": "kitchen_0006.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 1,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:42:55",
+      "time_taken_to_generate_seconds": 44.83,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "rat",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0648,
+          "approx_initial_pixel_width": 41.47,
+          "initial_position_image_px": {
+            "x": 381,
+            "y": 344
+          },
+          "initial_position_image_norm": {
+            "x": 0.596244,
+            "y": 0.718163
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/0fb978b9",
+      "labels_dir": "outputs/test/labels/0fb978b9"
+    },
+    {
+      "job_id": "0491baa8",
+      "video_id": "0491baa8",
+      "kitchen_id": "kitchen_0057.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:43:32",
+      "time_taken_to_generate_seconds": 42.35,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 198,
+            "y": 316
+          },
+          "initial_position_image_norm": {
+            "x": 0.309859,
+            "y": 0.659708
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/0491baa8",
+      "labels_dir": "outputs/train/labels/0491baa8"
+    },
+    {
+      "job_id": "3b5a420d",
+      "video_id": "3b5a420d",
+      "kitchen_id": "kitchen_0005.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:43:38",
+      "time_taken_to_generate_seconds": 43.5,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 418,
+            "y": 329
+          },
+          "initial_position_image_norm": {
+            "x": 0.654147,
+            "y": 0.686848
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/3b5a420d",
+      "labels_dir": "outputs/train/labels/3b5a420d"
+    },
+    {
+      "job_id": "bfc0f2ec",
+      "video_id": "bfc0f2ec",
+      "kitchen_id": "kitchen_0055.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:44:10",
+      "time_taken_to_generate_seconds": 38.22,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 165,
+            "y": 351
+          },
+          "initial_position_image_norm": {
+            "x": 0.258216,
+            "y": 0.732777
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 16,
+            "y": 68
+          },
+          "initial_position_image_norm": {
+            "x": 0.025039,
+            "y": 0.141962
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/bfc0f2ec",
+      "labels_dir": "outputs/train/labels/bfc0f2ec"
+    },
+    {
+      "job_id": "12228d1b",
+      "video_id": "12228d1b",
+      "kitchen_id": "kitchen_0039.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:44:13",
+      "time_taken_to_generate_seconds": 35.01,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/12228d1b",
+      "labels_dir": "outputs/train/labels/12228d1b"
+    },
+    {
+      "job_id": "b222169b",
+      "video_id": "b222169b",
+      "kitchen_id": "kitchen_0023.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:44:51",
+      "time_taken_to_generate_seconds": 41.07,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/b222169b",
+      "labels_dir": "outputs/train/labels/b222169b"
+    },
+    {
+      "job_id": "042b586a",
+      "video_id": "042b586a",
+      "kitchen_id": "kitchen_0057.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:44:56",
+      "time_taken_to_generate_seconds": 42.14,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/042b586a",
+      "labels_dir": "outputs/train/labels/042b586a"
+    },
+    {
+      "job_id": "31a7952a",
+      "video_id": "31a7952a",
+      "kitchen_id": "kitchen_0029.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:45:28",
+      "time_taken_to_generate_seconds": 36.92,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 566,
+            "y": 267
+          },
+          "initial_position_image_norm": {
+            "x": 0.885759,
+            "y": 0.557411
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/31a7952a",
+      "labels_dir": "outputs/test/labels/31a7952a"
+    },
+    {
+      "job_id": "3776c6ef",
+      "video_id": "3776c6ef",
+      "kitchen_id": "kitchen_0019.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 2,
+      "rat_count": 0,
+      "cockroach_count": 4,
+      "date_time_generated": "2026-03-31T19:45:36",
+      "time_taken_to_generate_seconds": 40.65,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 316,
+            "y": 466
+          },
+          "initial_position_image_norm": {
+            "x": 0.494523,
+            "y": 0.97286
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 313,
+            "y": 98
+          },
+          "initial_position_image_norm": {
+            "x": 0.489828,
+            "y": 0.204593
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 55,
+            "y": 421
+          },
+          "initial_position_image_norm": {
+            "x": 0.086072,
+            "y": 0.878914
+          }
+        },
+        {
+          "pest_index": 3,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 321,
+            "y": 417
+          },
+          "initial_position_image_norm": {
+            "x": 0.502347,
+            "y": 0.870564
+          }
+        },
+        {
+          "pest_index": 4,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 138,
+            "y": 451
+          },
+          "initial_position_image_norm": {
+            "x": 0.215962,
+            "y": 0.941545
+          }
+        },
+        {
+          "pest_index": 5,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 296,
+            "y": 467
+          },
+          "initial_position_image_norm": {
+            "x": 0.463224,
+            "y": 0.974948
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/3776c6ef",
+      "labels_dir": "outputs/train/labels/3776c6ef"
+    },
+    {
+      "job_id": "f3fa8352",
+      "video_id": "f3fa8352",
+      "kitchen_id": "kitchen_0003.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:46:03",
+      "time_taken_to_generate_seconds": 34.34,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 491,
+            "y": 467
+          },
+          "initial_position_image_norm": {
+            "x": 0.768388,
+            "y": 0.974948
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/f3fa8352",
+      "labels_dir": "outputs/test/labels/f3fa8352"
+    },
+    {
+      "job_id": "4e1b7b63",
+      "video_id": "4e1b7b63",
+      "kitchen_id": "kitchen_0037.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:46:20",
+      "time_taken_to_generate_seconds": 43.8,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 353,
+            "y": 408
+          },
+          "initial_position_image_norm": {
+            "x": 0.552426,
+            "y": 0.851775
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 60,
+            "y": 225
+          },
+          "initial_position_image_norm": {
+            "x": 0.093897,
+            "y": 0.469729
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/4e1b7b63",
+      "labels_dir": "outputs/train/labels/4e1b7b63"
+    },
+    {
+      "job_id": "c519efd4",
+      "video_id": "c519efd4",
+      "kitchen_id": "kitchen_0060.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 2,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:46:44",
+      "time_taken_to_generate_seconds": 41.43,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 1.1381,
+          "relative_size_image_fraction": 0.06828,
+          "approx_initial_pixel_width": 43.7,
+          "initial_position_image_px": {
+            "x": 70,
+            "y": 443
+          },
+          "initial_position_image_norm": {
+            "x": 0.109546,
+            "y": 0.924843
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 143,
+            "y": 212
+          },
+          "initial_position_image_norm": {
+            "x": 0.223787,
+            "y": 0.442589
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "rat",
+          "relative_size_scale": 1.1739,
+          "relative_size_image_fraction": 0.10565,
+          "approx_initial_pixel_width": 67.62,
+          "initial_position_image_px": {
+            "x": 466,
+            "y": 297
+          },
+          "initial_position_image_norm": {
+            "x": 0.729264,
+            "y": 0.620042
+          }
+        },
+        {
+          "pest_index": 3,
+          "pest_type": "rat",
+          "relative_size_scale": 1.1682,
+          "relative_size_image_fraction": 0.10514,
+          "approx_initial_pixel_width": 67.29,
+          "initial_position_image_px": {
+            "x": 451,
+            "y": 293
+          },
+          "initial_position_image_norm": {
+            "x": 0.70579,
+            "y": 0.611691
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/c519efd4",
+      "labels_dir": "outputs/train/labels/c519efd4"
+    },
+    {
+      "job_id": "bc7cca43",
+      "video_id": "bc7cca43",
+      "kitchen_id": "kitchen_0064.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:47:03",
+      "time_taken_to_generate_seconds": 42.54,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 328,
+            "y": 276
+          },
+          "initial_position_image_norm": {
+            "x": 0.513302,
+            "y": 0.5762
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 63,
+            "y": 301
+          },
+          "initial_position_image_norm": {
+            "x": 0.098592,
+            "y": 0.628392
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/bc7cca43",
+      "labels_dir": "outputs/test/labels/bc7cca43"
+    },
+    {
+      "job_id": "eb1eb528",
+      "video_id": "eb1eb528",
+      "kitchen_id": "kitchen_0021.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 2,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:47:27",
+      "time_taken_to_generate_seconds": 43.13,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "rat",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0648,
+          "approx_initial_pixel_width": 41.47,
+          "initial_position_image_px": {
+            "x": 614,
+            "y": 289
+          },
+          "initial_position_image_norm": {
+            "x": 0.960876,
+            "y": 0.60334
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "rat",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0648,
+          "approx_initial_pixel_width": 41.47,
+          "initial_position_image_px": {
+            "x": 293,
+            "y": 291
+          },
+          "initial_position_image_norm": {
+            "x": 0.458529,
+            "y": 0.607516
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/eb1eb528",
+      "labels_dir": "outputs/train/labels/eb1eb528"
+    },
+    {
+      "job_id": "c422804c",
+      "video_id": "c422804c",
+      "kitchen_id": "kitchen_0031.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:47:48",
+      "time_taken_to_generate_seconds": 45.05,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/c422804c",
+      "labels_dir": "outputs/train/labels/c422804c"
+    },
+    {
+      "job_id": "48d98ad5",
+      "video_id": "48d98ad5",
+      "kitchen_id": "kitchen_0062.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:48:06",
+      "time_taken_to_generate_seconds": 38.75,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 241,
+            "y": 385
+          },
+          "initial_position_image_norm": {
+            "x": 0.377152,
+            "y": 0.803758
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 170,
+            "y": 212
+          },
+          "initial_position_image_norm": {
+            "x": 0.266041,
+            "y": 0.442589
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 183,
+            "y": 280
+          },
+          "initial_position_image_norm": {
+            "x": 0.286385,
+            "y": 0.584551
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/48d98ad5",
+      "labels_dir": "outputs/train/labels/48d98ad5"
+    },
+    {
+      "job_id": "24550342",
+      "video_id": "24550342",
+      "kitchen_id": "kitchen_0024.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:48:25",
+      "time_taken_to_generate_seconds": 37.04,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 451,
+            "y": 160
+          },
+          "initial_position_image_norm": {
+            "x": 0.70579,
+            "y": 0.334029
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/24550342",
+      "labels_dir": "outputs/train/labels/24550342"
+    },
+    {
+      "job_id": "cdffc9af",
+      "video_id": "cdffc9af",
+      "kitchen_id": "kitchen_0049.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 2,
+      "rat_count": 1,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:48:52",
+      "time_taken_to_generate_seconds": 45.77,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 195,
+            "y": 428
+          },
+          "initial_position_image_norm": {
+            "x": 0.305164,
+            "y": 0.893528
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "rat",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0648,
+          "approx_initial_pixel_width": 41.47,
+          "initial_position_image_px": {
+            "x": 261,
+            "y": 455
+          },
+          "initial_position_image_norm": {
+            "x": 0.408451,
+            "y": 0.949896
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 534,
+            "y": 314
+          },
+          "initial_position_image_norm": {
+            "x": 0.835681,
+            "y": 0.655532
+          }
+        },
+        {
+          "pest_index": 3,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 213,
+            "y": 453
+          },
+          "initial_position_image_norm": {
+            "x": 0.333333,
+            "y": 0.94572
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/cdffc9af",
+      "labels_dir": "outputs/train/labels/cdffc9af"
+    },
+    {
+      "job_id": "2a430775",
+      "video_id": "2a430775",
+      "kitchen_id": "kitchen_0060.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 2,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:49:06",
+      "time_taken_to_generate_seconds": 41.04,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 619,
+            "y": 389
+          },
+          "initial_position_image_norm": {
+            "x": 0.968701,
+            "y": 0.812109
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "mouse",
+          "relative_size_scale": 1.0433,
+          "relative_size_image_fraction": 0.0626,
+          "approx_initial_pixel_width": 40.06,
+          "initial_position_image_px": {
+            "x": 73,
+            "y": 393
+          },
+          "initial_position_image_norm": {
+            "x": 0.114241,
+            "y": 0.820459
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.8571,
+          "relative_size_image_fraction": 0.05143,
+          "approx_initial_pixel_width": 32.91,
+          "initial_position_image_px": {
+            "x": 296,
+            "y": 447
+          },
+          "initial_position_image_norm": {
+            "x": 0.463224,
+            "y": 0.933194
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/2a430775",
+      "labels_dir": "outputs/train/labels/2a430775"
+    },
+    {
+      "job_id": "802974c7",
+      "video_id": "802974c7",
+      "kitchen_id": "kitchen_0018.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 1,
+      "cockroach_count": 3,
+      "date_time_generated": "2026-03-31T19:49:24",
+      "time_taken_to_generate_seconds": 32.18,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 213,
+            "y": 398
+          },
+          "initial_position_image_norm": {
+            "x": 0.333333,
+            "y": 0.830898
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 609,
+            "y": 160
+          },
+          "initial_position_image_norm": {
+            "x": 0.953052,
+            "y": 0.334029
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "rat",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0648,
+          "approx_initial_pixel_width": 41.47,
+          "initial_position_image_px": {
+            "x": 499,
+            "y": 451
+          },
+          "initial_position_image_norm": {
+            "x": 0.780908,
+            "y": 0.941545
+          }
+        },
+        {
+          "pest_index": 3,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 16,
+            "y": 289
+          },
+          "initial_position_image_norm": {
+            "x": 0.025039,
+            "y": 0.60334
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/802974c7",
+      "labels_dir": "outputs/test/labels/802974c7"
+    },
+    {
+      "job_id": "5c4c5098",
+      "video_id": "5c4c5098",
+      "kitchen_id": "kitchen_0063.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:49:46",
+      "time_taken_to_generate_seconds": 39.95,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/5c4c5098",
+      "labels_dir": "outputs/train/labels/5c4c5098"
+    },
+    {
+      "job_id": "6596ebf7",
+      "video_id": "6596ebf7",
+      "kitchen_id": "kitchen_0051.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 2,
+      "rat_count": 0,
+      "cockroach_count": 4,
+      "date_time_generated": "2026-03-31T19:50:13",
+      "time_taken_to_generate_seconds": 48.69,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 306,
+            "y": 289
+          },
+          "initial_position_image_norm": {
+            "x": 0.478873,
+            "y": 0.60334
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 581,
+            "y": 24
+          },
+          "initial_position_image_norm": {
+            "x": 0.909233,
+            "y": 0.050104
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 213,
+            "y": 165
+          },
+          "initial_position_image_norm": {
+            "x": 0.333333,
+            "y": 0.344468
+          }
+        },
+        {
+          "pest_index": 3,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 469,
+            "y": 334
+          },
+          "initial_position_image_norm": {
+            "x": 0.733959,
+            "y": 0.697286
+          }
+        },
+        {
+          "pest_index": 4,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 266,
+            "y": 284
+          },
+          "initial_position_image_norm": {
+            "x": 0.416275,
+            "y": 0.592902
+          }
+        },
+        {
+          "pest_index": 5,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 323,
+            "y": 302
+          },
+          "initial_position_image_norm": {
+            "x": 0.505477,
+            "y": 0.63048
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/6596ebf7",
+      "labels_dir": "outputs/train/labels/6596ebf7"
+    },
+    {
+      "job_id": "e849f3b7",
+      "video_id": "e849f3b7",
+      "kitchen_id": "kitchen_0064.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:50:27",
+      "time_taken_to_generate_seconds": 41.66,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 278,
+            "y": 128
+          },
+          "initial_position_image_norm": {
+            "x": 0.435055,
+            "y": 0.267223
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/e849f3b7",
+      "labels_dir": "outputs/test/labels/e849f3b7"
+    },
+    {
+      "job_id": "f8b6730d",
+      "video_id": "f8b6730d",
+      "kitchen_id": "kitchen_0039.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:50:48",
+      "time_taken_to_generate_seconds": 35.32,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 103,
+            "y": 336
+          },
+          "initial_position_image_norm": {
+            "x": 0.161189,
+            "y": 0.701461
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/f8b6730d",
+      "labels_dir": "outputs/train/labels/f8b6730d"
+    },
+    {
+      "job_id": "89edd69d",
+      "video_id": "89edd69d",
+      "kitchen_id": "kitchen_0030.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 1,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:51:10",
+      "time_taken_to_generate_seconds": 42.27,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 524,
+            "y": 261
+          },
+          "initial_position_image_norm": {
+            "x": 0.820031,
+            "y": 0.544885
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "rat",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0648,
+          "approx_initial_pixel_width": 41.47,
+          "initial_position_image_px": {
+            "x": 198,
+            "y": 467
+          },
+          "initial_position_image_norm": {
+            "x": 0.309859,
+            "y": 0.974948
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/89edd69d",
+      "labels_dir": "outputs/train/labels/89edd69d"
+    },
+    {
+      "job_id": "82f331c5",
+      "video_id": "82f331c5",
+      "kitchen_id": "kitchen_0048.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:51:25",
+      "time_taken_to_generate_seconds": 37.29,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 589,
+            "y": 188
+          },
+          "initial_position_image_norm": {
+            "x": 0.921753,
+            "y": 0.392484
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/82f331c5",
+      "labels_dir": "outputs/test/labels/82f331c5"
+    },
+    {
+      "job_id": "fec6781e",
+      "video_id": "fec6781e",
+      "kitchen_id": "kitchen_0046.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:51:47",
+      "time_taken_to_generate_seconds": 37.06,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/fec6781e",
+      "labels_dir": "outputs/train/labels/fec6781e"
+    },
+    {
+      "job_id": "852a8846",
+      "video_id": "852a8846",
+      "kitchen_id": "kitchen_0038.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:52:06",
+      "time_taken_to_generate_seconds": 41.04,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/852a8846",
+      "labels_dir": "outputs/test/labels/852a8846"
+    },
+    {
+      "job_id": "45fe72b3",
+      "video_id": "45fe72b3",
+      "kitchen_id": "kitchen_0038.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:52:28",
+      "time_taken_to_generate_seconds": 41.32,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/45fe72b3",
+      "labels_dir": "outputs/test/labels/45fe72b3"
+    },
+    {
+      "job_id": "662f8ec0",
+      "video_id": "662f8ec0",
+      "kitchen_id": "kitchen_0028.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:52:42",
+      "time_taken_to_generate_seconds": 35.56,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 253,
+            "y": 319
+          },
+          "initial_position_image_norm": {
+            "x": 0.395931,
+            "y": 0.665971
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/662f8ec0",
+      "labels_dir": "outputs/test/labels/662f8ec0"
+    },
+    {
+      "job_id": "716937d4",
+      "video_id": "716937d4",
+      "kitchen_id": "kitchen_0055.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:53:04",
+      "time_taken_to_generate_seconds": 36.25,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/716937d4",
+      "labels_dir": "outputs/train/labels/716937d4"
+    },
+    {
+      "job_id": "535beb44",
+      "video_id": "535beb44",
+      "kitchen_id": "kitchen_0022.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:53:22",
+      "time_taken_to_generate_seconds": 40.59,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 413,
+            "y": 310
+          },
+          "initial_position_image_norm": {
+            "x": 0.646322,
+            "y": 0.647182
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/535beb44",
+      "labels_dir": "outputs/train/labels/535beb44"
+    },
+    {
+      "job_id": "4f9f594d",
+      "video_id": "4f9f594d",
+      "kitchen_id": "kitchen_0006.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:53:48",
+      "time_taken_to_generate_seconds": 43.68,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/4f9f594d",
+      "labels_dir": "outputs/test/labels/4f9f594d"
+    },
+    {
+      "job_id": "97524464",
+      "video_id": "97524464",
+      "kitchen_id": "kitchen_0013.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:54:06",
+      "time_taken_to_generate_seconds": 43.5,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 479,
+            "y": 299
+          },
+          "initial_position_image_norm": {
+            "x": 0.749609,
+            "y": 0.624217
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/97524464",
+      "labels_dir": "outputs/train/labels/97524464"
+    },
+    {
+      "job_id": "9b40759f",
+      "video_id": "9b40759f",
+      "kitchen_id": "kitchen_0056.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:54:26",
+      "time_taken_to_generate_seconds": 38.53,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 175,
+            "y": 239
+          },
+          "initial_position_image_norm": {
+            "x": 0.273865,
+            "y": 0.498956
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 110,
+            "y": 192
+          },
+          "initial_position_image_norm": {
+            "x": 0.172144,
+            "y": 0.400835
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/9b40759f",
+      "labels_dir": "outputs/train/labels/9b40759f"
+    },
+    {
+      "job_id": "be6de7d1",
+      "video_id": "be6de7d1",
+      "kitchen_id": "kitchen_0021.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:54:48",
+      "time_taken_to_generate_seconds": 42.09,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/be6de7d1",
+      "labels_dir": "outputs/train/labels/be6de7d1"
+    },
+    {
+      "job_id": "ee2a4e18",
+      "video_id": "ee2a4e18",
+      "kitchen_id": "kitchen_0005.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 3,
+      "date_time_generated": "2026-03-31T19:55:12",
+      "time_taken_to_generate_seconds": 46.04,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 170,
+            "y": 323
+          },
+          "initial_position_image_norm": {
+            "x": 0.266041,
+            "y": 0.674322
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 346,
+            "y": 171
+          },
+          "initial_position_image_norm": {
+            "x": 0.541471,
+            "y": 0.356994
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 58,
+            "y": 467
+          },
+          "initial_position_image_norm": {
+            "x": 0.090767,
+            "y": 0.974948
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/ee2a4e18",
+      "labels_dir": "outputs/train/labels/ee2a4e18"
+    },
+    {
+      "job_id": "0a165216",
+      "video_id": "0a165216",
+      "kitchen_id": "kitchen_0012.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 2,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:55:28",
+      "time_taken_to_generate_seconds": 39.58,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 346,
+            "y": 425
+          },
+          "initial_position_image_norm": {
+            "x": 0.541471,
+            "y": 0.887265
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 346,
+            "y": 334
+          },
+          "initial_position_image_norm": {
+            "x": 0.541471,
+            "y": 0.697286
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 241,
+            "y": 30
+          },
+          "initial_position_image_norm": {
+            "x": 0.377152,
+            "y": 0.06263
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/0a165216",
+      "labels_dir": "outputs/train/labels/0a165216"
+    },
+    {
+      "job_id": "444a3267",
+      "video_id": "444a3267",
+      "kitchen_id": "kitchen_0017.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:55:53",
+      "time_taken_to_generate_seconds": 40.62,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 123,
+            "y": 162
+          },
+          "initial_position_image_norm": {
+            "x": 0.192488,
+            "y": 0.338205
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/444a3267",
+      "labels_dir": "outputs/train/labels/444a3267"
+    },
+    {
+      "job_id": "7047e1e1",
+      "video_id": "7047e1e1",
+      "kitchen_id": "kitchen_0047.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:56:10",
+      "time_taken_to_generate_seconds": 42.38,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/7047e1e1",
+      "labels_dir": "outputs/train/labels/7047e1e1"
+    },
+    {
+      "job_id": "676d7fad",
+      "video_id": "676d7fad",
+      "kitchen_id": "kitchen_0010.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:56:37",
+      "time_taken_to_generate_seconds": 44.22,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 351,
+            "y": 387
+          },
+          "initial_position_image_norm": {
+            "x": 0.549296,
+            "y": 0.807933
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 123,
+            "y": 394
+          },
+          "initial_position_image_norm": {
+            "x": 0.192488,
+            "y": 0.822547
+          }
+        },
+        {
+          "pest_index": 2,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 343,
+            "y": 376
+          },
+          "initial_position_image_norm": {
+            "x": 0.536776,
+            "y": 0.784969
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/676d7fad",
+      "labels_dir": "outputs/train/labels/676d7fad"
+    },
+    {
+      "job_id": "57e775ef",
+      "video_id": "57e775ef",
+      "kitchen_id": "kitchen_0065.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:56:47",
+      "time_taken_to_generate_seconds": 36.59,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 266,
+            "y": 415
+          },
+          "initial_position_image_norm": {
+            "x": 0.416275,
+            "y": 0.866388
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/57e775ef",
+      "labels_dir": "outputs/train/labels/57e775ef"
+    },
+    {
+      "job_id": "6b7a5446",
+      "video_id": "6b7a5446",
+      "kitchen_id": "kitchen_0067.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:57:10",
+      "time_taken_to_generate_seconds": 32.56,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/6b7a5446",
+      "labels_dir": "outputs/train/labels/6b7a5446"
+    },
+    {
+      "job_id": "e7524252",
+      "video_id": "e7524252",
+      "kitchen_id": "kitchen_0067.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:57:23",
+      "time_taken_to_generate_seconds": 36.07,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 33,
+            "y": 387
+          },
+          "initial_position_image_norm": {
+            "x": 0.051643,
+            "y": 0.807933
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 123,
+            "y": 379
+          },
+          "initial_position_image_norm": {
+            "x": 0.192488,
+            "y": 0.791232
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/e7524252",
+      "labels_dir": "outputs/train/labels/e7524252"
+    },
+    {
+      "job_id": "ee2b307e",
+      "video_id": "ee2b307e",
+      "kitchen_id": "kitchen_0050.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:57:55",
+      "time_taken_to_generate_seconds": 45.19,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 296,
+            "y": 12
+          },
+          "initial_position_image_norm": {
+            "x": 0.463224,
+            "y": 0.025052
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/ee2b307e",
+      "labels_dir": "outputs/train/labels/ee2b307e"
+    },
+    {
+      "job_id": "af230331",
+      "video_id": "af230331",
+      "kitchen_id": "kitchen_0010.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T19:58:08",
+      "time_taken_to_generate_seconds": 45.21,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 323,
+            "y": 441
+          },
+          "initial_position_image_norm": {
+            "x": 0.505477,
+            "y": 0.920668
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 391,
+            "y": 467
+          },
+          "initial_position_image_norm": {
+            "x": 0.611894,
+            "y": 0.974948
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/af230331",
+      "labels_dir": "outputs/train/labels/af230331"
+    },
+    {
+      "job_id": "8457730d",
+      "video_id": "8457730d",
+      "kitchen_id": "kitchen_0004.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:58:42",
+      "time_taken_to_generate_seconds": 47.45,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 526,
+            "y": 447
+          },
+          "initial_position_image_norm": {
+            "x": 0.823161,
+            "y": 0.933194
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/8457730d",
+      "labels_dir": "outputs/test/labels/8457730d"
+    },
+    {
+      "job_id": "e422d398",
+      "video_id": "e422d398",
+      "kitchen_id": "kitchen_0046.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:58:44",
+      "time_taken_to_generate_seconds": 36.62,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/e422d398",
+      "labels_dir": "outputs/train/labels/e422d398"
+    },
+    {
+      "job_id": "21f7295e",
+      "video_id": "21f7295e",
+      "kitchen_id": "kitchen_0024.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 2,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T19:59:21",
+      "time_taken_to_generate_seconds": 37.03,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 155,
+            "y": 111
+          },
+          "initial_position_image_norm": {
+            "x": 0.242567,
+            "y": 0.231733
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 170,
+            "y": 447
+          },
+          "initial_position_image_norm": {
+            "x": 0.266041,
+            "y": 0.933194
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/21f7295e",
+      "labels_dir": "outputs/train/labels/21f7295e"
+    },
+    {
+      "job_id": "a12adff5",
+      "video_id": "a12adff5",
+      "kitchen_id": "kitchen_0015.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 1,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:59:22",
+      "time_taken_to_generate_seconds": 39.44,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "mouse",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0432,
+          "approx_initial_pixel_width": 27.65,
+          "initial_position_image_px": {
+            "x": 431,
+            "y": 451
+          },
+          "initial_position_image_norm": {
+            "x": 0.674491,
+            "y": 0.941545
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 386,
+            "y": 60
+          },
+          "initial_position_image_norm": {
+            "x": 0.604069,
+            "y": 0.125261
+          }
+        }
+      ],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/a12adff5",
+      "labels_dir": "outputs/test/labels/a12adff5"
+    },
+    {
+      "job_id": "bb73f49d",
+      "video_id": "bb73f49d",
+      "kitchen_id": "kitchen_0070.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 1,
+      "date_time_generated": "2026-03-31T19:59:54",
+      "time_taken_to_generate_seconds": 32.31,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 551,
+            "y": 85
+          },
+          "initial_position_image_norm": {
+            "x": 0.862285,
+            "y": 0.177453
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/bb73f49d",
+      "labels_dir": "outputs/train/labels/bb73f49d"
+    },
+    {
+      "job_id": "d785c5cb",
+      "video_id": "d785c5cb",
+      "kitchen_id": "kitchen_0036.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T20:00:01",
+      "time_taken_to_generate_seconds": 38.77,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/d785c5cb",
+      "labels_dir": "outputs/test/labels/d785c5cb"
+    },
+    {
+      "job_id": "efcffb0b",
+      "video_id": "efcffb0b",
+      "kitchen_id": "kitchen_0029.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T20:00:31",
+      "time_taken_to_generate_seconds": 36.91,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "test",
+      "frames_dir": "outputs/test/frames/efcffb0b",
+      "labels_dir": "outputs/test/labels/efcffb0b"
+    },
+    {
+      "job_id": "c6559a4c",
+      "video_id": "c6559a4c",
+      "kitchen_id": "kitchen_0005.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 2,
+      "date_time_generated": "2026-03-31T20:00:46",
+      "time_taken_to_generate_seconds": 45.4,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [
+        {
+          "pest_index": 0,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 65,
+            "y": 370
+          },
+          "initial_position_image_norm": {
+            "x": 0.101721,
+            "y": 0.772443
+          }
+        },
+        {
+          "pest_index": 1,
+          "pest_type": "cockroach",
+          "relative_size_scale": 0.72,
+          "relative_size_image_fraction": 0.0288,
+          "approx_initial_pixel_width": 18.43,
+          "initial_position_image_px": {
+            "x": 208,
+            "y": 257
+          },
+          "initial_position_image_norm": {
+            "x": 0.325509,
+            "y": 0.536534
+          }
+        }
+      ],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/c6559a4c",
+      "labels_dir": "outputs/train/labels/c6559a4c"
+    },
+    {
+      "job_id": "d82ae75c",
+      "video_id": "d82ae75c",
+      "kitchen_id": "kitchen_0024.jpg",
+      "length_of_video_seconds": 24.0,
+      "fps": 10,
+      "mouse_count": 0,
+      "rat_count": 0,
+      "cockroach_count": 0,
+      "date_time_generated": "2026-03-31T20:01:08",
+      "time_taken_to_generate_seconds": 37.18,
+      "pest_size_multiplier": 1.8,
+      "pest_generation_metadata": [],
+      "split": "train",
+      "frames_dir": "outputs/train/frames/d82ae75c",
+      "labels_dir": "outputs/train/labels/d82ae75c"
+    }
+  ],
+  "updated_at": "2026-03-31T20:01:08"
+}
