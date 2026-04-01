@@ -1,7 +1,11 @@
 """Training entry point for DETR object detection.
 
-Usage:
+Usage (local):
     python -m training.train --data_dir outputs/dataset --epochs 20 --freeze_backbone
+
+Usage (Hugging Face):
+    python -m training.train --hf_dataset your-username/pest-detection-dataset --freeze_backbone
+    # Downloads the dataset from HF Hub into a local cache, then trains normally.
 """
 
 import argparse
@@ -85,6 +89,9 @@ def main():
     parser.add_argument("--model_name", default=DETR_MODEL_NAME)
     parser.add_argument("--data_dir", default=None,
                         help="Path to COCO dataset with images/ and annotations/ dirs")
+    parser.add_argument("--hf_dataset", default=None,
+                        help="Hugging Face dataset repo (e.g. username/pest-detection-dataset). "
+                             "Downloads to a local cache and sets --data_dir automatically.")
     parser.add_argument("--batch_size", type=int, default=DETR_BATCH_SIZE)
     parser.add_argument("--epochs", type=int, default=DETR_NUM_EPOCHS)
     parser.add_argument("--lr", type=float, default=None)
@@ -103,8 +110,14 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
+    if args.hf_dataset is not None:
+        from huggingface_hub import snapshot_download
+        print(f"Downloading dataset from HF Hub: {args.hf_dataset}")
+        args.data_dir = snapshot_download(repo_id=args.hf_dataset, repo_type="dataset")
+        print(f"Dataset cached at: {args.data_dir}")
+
     if args.data_dir is None:
-        parser.error("--data_dir is required for DETR training")
+        parser.error("--data_dir or --hf_dataset is required for DETR training")
 
     if args.lr is None:
         if args.freeze_backbone:
