@@ -13,9 +13,11 @@ NUM_FRAMES = 300
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUT_DIR = os.path.join(PROJECT_ROOT, "outputs")
 UPLOAD_DIR = os.path.join(OUTPUT_DIR, "uploads")
-FRAMES_DIR = os.path.join(OUTPUT_DIR, "frames")
-VIDEOS_DIR = os.path.join(OUTPUT_DIR, "videos")
-LABELS_DIR = os.path.join(OUTPUT_DIR, "labels")
+# Preview/test-tab outputs (real generator writes to outputs/train|test/* explicitly).
+PREVIEW_OUTPUT_DIR = os.path.join(OUTPUT_DIR, "preview")
+FRAMES_DIR = os.path.join(PREVIEW_OUTPUT_DIR, "frames")
+VIDEOS_DIR = os.path.join(PREVIEW_OUTPUT_DIR, "videos")
+LABELS_DIR = os.path.join(PREVIEW_OUTPUT_DIR, "labels")
 
 # Sprite directories — place RGBA PNG files here to override procedural fallback.
 # Resolution order: sprites/{pest_type}/*.png → procedural PIL ellipse.

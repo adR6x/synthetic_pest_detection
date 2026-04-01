@@ -1,8 +1,8 @@
 """Convert generator output into a DETR-compatible COCO dataset.
 
-The generator writes:
-    outputs/frames/{job_id}/frame_XXXX.png   (one PNG per frame)
-    outputs/labels/{job_id}/annotations.json  (one COCO file per job)
+The split-aware real generator writes:
+    outputs/train/frames/{job_id}/frame_XXXX.png   (one PNG per frame)
+    outputs/train/labels/{job_id}/annotations.json  (one COCO file per job)
 
 DETR training expects:
     data_dir/images/train/*.png
@@ -20,8 +20,8 @@ Split strategy: split by JOB (video), not by frame.
 
 Usage:
     python -m training.prepare_dataset
-    python -m training.prepare_dataset --frames_root outputs/frames \\
-                                       --labels_root outputs/labels \\
+    python -m training.prepare_dataset --frames_root outputs/train/frames \\
+                                       --labels_root outputs/train/labels \\
                                        --output_dir  outputs/dataset \\
                                        --val_frac 0.1 --test_frac 0.1 \\
                                        --every_n 10
@@ -137,8 +137,8 @@ def write_split(job_frames_flat, split_dir, ann_path, categories,
 
 def main():
     parser = argparse.ArgumentParser(description="Prepare DETR dataset from generator output")
-    parser.add_argument("--frames_root", default=os.path.join(PROJECT_ROOT, "outputs", "frames"))
-    parser.add_argument("--labels_root", default=os.path.join(PROJECT_ROOT, "outputs", "labels"))
+    parser.add_argument("--frames_root", default=os.path.join(PROJECT_ROOT, "outputs", "train", "frames"))
+    parser.add_argument("--labels_root", default=os.path.join(PROJECT_ROOT, "outputs", "train", "labels"))
     parser.add_argument("--output_dir",  default=os.path.join(PROJECT_ROOT, "outputs", "dataset"))
     parser.add_argument("--val_frac",    type=float, default=0.1)
     parser.add_argument("--test_frac",   type=float, default=0.1)

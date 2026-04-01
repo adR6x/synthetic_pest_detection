@@ -53,10 +53,6 @@ VIDEOS_DIR = DEFAULT_VIDEOS_DIR
 LABELS_DIR = DEFAULT_LABELS_DIR
 
 # Real tab roots (always persistent; kept training-compatible)
-REAL_UPLOAD_DIR = DEFAULT_UPLOAD_DIR
-REAL_FRAMES_DIR = DEFAULT_FRAMES_DIR
-REAL_VIDEOS_DIR = DEFAULT_VIDEOS_DIR
-REAL_LABELS_DIR = DEFAULT_LABELS_DIR
 REAL_TRAIN_FRAME_STRIDE = 10
 
 
@@ -90,10 +86,6 @@ for d in [
     FRAMES_DIR,
     VIDEOS_DIR,
     LABELS_DIR,
-    REAL_UPLOAD_DIR,
-    REAL_FRAMES_DIR,
-    REAL_VIDEOS_DIR,
-    REAL_LABELS_DIR,
     UNCURATED_IMG_DIR,
     CURATED_IMG_DIR,
 ]:
@@ -242,9 +234,17 @@ def _generate_video_for_image_with_params(
     save_every_n=None,
 ):
     t0 = time.time()
-    resolved_frames_root = frames_root or (REAL_FRAMES_DIR if use_real_outputs else FRAMES_DIR)
-    resolved_labels_root = labels_root or (REAL_LABELS_DIR if use_real_outputs else LABELS_DIR)
-    resolved_videos_root = videos_root or (REAL_VIDEOS_DIR if use_real_outputs else VIDEOS_DIR)
+    # Real generator outputs must be explicit split roots (outputs/train|test/...).
+    # This prevents accidental fallback to legacy outputs/{frames,labels,videos}.
+    if use_real_outputs and (not frames_root or not labels_root or not videos_root):
+        raise ValueError(
+            "Real generation requires explicit split output roots "
+            "(frames_root, labels_root, videos_root)."
+        )
+
+    resolved_frames_root = frames_root or FRAMES_DIR
+    resolved_labels_root = labels_root or LABELS_DIR
+    resolved_videos_root = videos_root or VIDEOS_DIR
     resolved_save_every_n = save_every_n or (REAL_TRAIN_FRAME_STRIDE if use_real_outputs else 1)
     result = generate_video(
         image_path,
