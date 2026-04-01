@@ -207,8 +207,9 @@ def main():
     coco_gt = COCO(ann_path)
     print(f"Images: {len(coco_gt.getImgIds())} | Annotations: {len(coco_gt.getAnnIds())}")
 
+    img_dir = str(Path(args.data_dir) / "images" / args.split)
     predictions = run_detection_on_dataset(
-        model, processor, coco_gt, args.data_dir, device,
+        model, processor, coco_gt, img_dir, device,
         threshold=args.threshold * 0.5,
     )
 
