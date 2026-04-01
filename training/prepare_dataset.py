@@ -31,9 +31,11 @@ import argparse
 import json
 import os
 import random
+import re
 import shutil
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRAME_NAME_RE = re.compile(r"^frame_(\d+)\.(png|jpg|jpeg|webp)$", re.IGNORECASE)
 
 
 def collect_jobs(frames_root, labels_root, skip_empty=False, every_n=1):
@@ -41,6 +43,10 @@ def collect_jobs(frames_root, labels_root, skip_empty=False, every_n=1):
 
     Splitting is done at the job level to prevent data leakage between
     frames from the same video appearing in both train and val/test.
+    Note: some newer generation runs keep a dense annotations.json while only
+    saving sparse frame files on disk. This loader treats the frame directory
+    as the source of truth and only includes annotations for frames whose
+    image files are actually present.
     """
     jobs = []
     categories = None
@@ -66,11 +72,15 @@ def collect_jobs(frames_root, labels_root, skip_empty=False, every_n=1):
         job_frames_list = []
         frame_fnames = sorted(
             f for f in os.listdir(job_frames)
-            if f.endswith(".png") and f.startswith("frame_")
+            if FRAME_NAME_RE.match(f)
         )
 
-        for i, fname in enumerate(frame_fnames):
-            if i % every_n != 0:          # subsample frames to reduce redundancy
+        for fname in frame_fnames:
+            match = FRAME_NAME_RE.match(fname)
+            if not match:
+                continue
+            frame_num = int(match.group(1))
+            if frame_num != 1 and frame_num % every_n != 0:
                 continue
             image_id = fname_to_id.get(fname)
             if image_id is None:
@@ -136,9 +146,10 @@ def main():
     parser.add_argument("--skip_empty",  action="store_true",
                         help="Exclude frames with no pest annotations")
     parser.add_argument("--every_n",     type=int, default=10,
-                        help="Use every Nth frame per video (default 10). "
-                             "Consecutive frames are nearly identical so subsampling "
-                             "reduces redundancy without losing coverage.")
+                        help="Use frame 1 and then every Nth frame number per video "
+                             "(default 10). This works for both dense legacy outputs "
+                             "and newer sparse-saved outputs named like frame_0001, "
+                             "frame_0010, frame_0020, ...")
     args = parser.parse_args()
 
     print(f"Scanning {args.frames_root} (every_n={args.every_n}) ...")

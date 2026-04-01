@@ -3,10 +3,12 @@
 Performs depth/normal analysis and assembles rendered frames into an MP4.
 """
 
+import json
 import os
 import random
 import shutil
 import subprocess
+import tempfile
 import time as _time
 import uuid
 from collections import Counter
@@ -118,6 +120,8 @@ def generate_video(
     save_mask_previews=True,
     save_movement_masks=True,
     keep_only_frame_outputs=False,
+    save_every_n=1,
+    keep_full_annotations=False,
 ):
     """Run the full generation pipeline for one kitchen image.
 
@@ -137,6 +141,11 @@ def generate_video(
         save_movement_masks: Whether to save per-surface movement mask PNGs.
         keep_only_frame_outputs: If True, delete non-frame artifacts from frames_dir
             after generation, keeping only frame_*.{png,jpg,jpeg,webp}.
+        save_every_n: Persist frame 1 and then every Nth rendered frame while
+            still simulating all frames. Saved frame numbering matches the
+            original timeline.
+        keep_full_annotations: If True, keep COCO entries for all simulated
+            frames even when only a sparse subset of frame images is saved.
 
     Returns:
         Dict with video_id/job_id, video_path, frames_dir, labels_dir,
@@ -173,6 +182,7 @@ def generate_video(
 
     effective_fps = _positive_int(fps, FPS)
     effective_num_frames = _positive_int(num_frames, NUM_FRAMES)
+    effective_save_every_n = _positive_int(save_every_n, 1)
     frame_ext = _normalize_frame_format(frame_format)
 
     # Choose number of pests from configured non-uniform distribution.
@@ -349,33 +359,75 @@ def generate_video(
             },
         })
 
-    # Composite pest sprites onto background image
-    print(f"Running 2D compositing for job {job_id}...")
-    _t0 = _time.monotonic()
-    composite_frames(
-        image_path=os.path.abspath(image_path),
-        pest_configs=pest_configs,
-        frames_dir=frames_dir,
-        labels_dir=labels_dir,
-        num_frames=effective_num_frames,
-        sprites_dir=SPRITES_DIR,
-        render_width=RENDER_WIDTH,
-        render_height=RENDER_HEIGHT,
-        plane_width=PLANE_WIDTH,
-        plane_height=PLANE_HEIGHT,
-        depth_map=depth_map,
-        fps=effective_fps,
-        surface_group_masks=surface_group_masks,
-        normals=predicted_normals,
-        save_mask_previews=bool(save_mask_previews),
-        frame_format=frame_ext,
-    )
-    print(f"Compositing finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
+    dense_mp4_with_sparse_persist = assemble_video and effective_save_every_n > 1
 
-    # Assemble frames into MP4 (optional for training-only generation).
-    if assemble_video:
-        _assemble_video(frames_dir, video_path, fps=effective_fps, frame_ext=frame_ext)
+    if dense_mp4_with_sparse_persist:
+        with tempfile.TemporaryDirectory(prefix=f"{job_id}_dense_", dir=os.path.dirname(frames_dir)) as temp_root:
+            temp_frames_dir = os.path.join(temp_root, "frames")
+            temp_labels_dir = os.path.join(temp_root, "labels")
+            print(f"Running dense 2D compositing for MP4 job {job_id}...")
+            _t0 = _time.monotonic()
+            composite_frames(
+                image_path=os.path.abspath(image_path),
+                pest_configs=pest_configs,
+                frames_dir=temp_frames_dir,
+                labels_dir=temp_labels_dir,
+                num_frames=effective_num_frames,
+                sprites_dir=SPRITES_DIR,
+                render_width=RENDER_WIDTH,
+                render_height=RENDER_HEIGHT,
+                plane_width=PLANE_WIDTH,
+                plane_height=PLANE_HEIGHT,
+                depth_map=depth_map,
+                fps=effective_fps,
+                surface_group_masks=surface_group_masks,
+                normals=predicted_normals,
+                save_mask_previews=bool(save_mask_previews),
+                frame_format=frame_ext,
+                save_every_n=1,
+                keep_full_annotations=True,
+            )
+            print(f"Dense compositing finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
+            _assemble_video(temp_frames_dir, video_path, fps=effective_fps, frame_ext=frame_ext)
+            _persist_sparse_outputs_from_dense(
+                dense_frames_dir=temp_frames_dir,
+                dense_labels_dir=temp_labels_dir,
+                sparse_frames_dir=frames_dir,
+                sparse_labels_dir=labels_dir,
+            )
     else:
+        print(f"Running 2D compositing for job {job_id}...")
+        _t0 = _time.monotonic()
+        composite_frames(
+            image_path=os.path.abspath(image_path),
+            pest_configs=pest_configs,
+            frames_dir=frames_dir,
+            labels_dir=labels_dir,
+            num_frames=effective_num_frames,
+            sprites_dir=SPRITES_DIR,
+            render_width=RENDER_WIDTH,
+            render_height=RENDER_HEIGHT,
+            plane_width=PLANE_WIDTH,
+            plane_height=PLANE_HEIGHT,
+            depth_map=depth_map,
+            fps=effective_fps,
+            surface_group_masks=surface_group_masks,
+            normals=predicted_normals,
+            save_mask_previews=bool(save_mask_previews),
+            frame_format=frame_ext,
+            save_every_n=effective_save_every_n,
+            keep_full_annotations=bool(keep_full_annotations),
+        )
+        print(f"Compositing finished in {_time.monotonic() - _t0:.1f}s (job {job_id})")
+
+        # Assemble frames into MP4 (optional for training-only generation).
+        if assemble_video:
+            video_fps = max(float(effective_fps) / float(effective_save_every_n), 1.0)
+            _assemble_video(frames_dir, video_path, fps=video_fps, frame_ext=frame_ext)
+        else:
+            video_path = None
+
+    if not assemble_video:
         video_path = None
 
     if keep_only_frame_outputs:
@@ -396,6 +448,12 @@ def generate_video(
         "pest_generation_metadata": pest_generation_metadata,
         "fps": effective_fps,
         "num_frames": effective_num_frames,
+        "saved_num_frames": (
+            effective_num_frames
+            if effective_save_every_n <= 1
+            else 1 + (effective_num_frames // effective_save_every_n)
+        ),
+        "save_every_n": effective_save_every_n,
     }
 
 
@@ -417,6 +475,39 @@ def _resolve_spawn_probs(spawn_probs):
     if sum(probs.values()) <= 1e-8:
         return dict(DEFAULT_SPAWN_PROBS)
     return probs
+
+
+def _persist_sparse_outputs_from_dense(
+    dense_frames_dir,
+    dense_labels_dir,
+    sparse_frames_dir,
+    sparse_labels_dir,
+):
+    os.makedirs(sparse_frames_dir, exist_ok=True)
+    os.makedirs(sparse_labels_dir, exist_ok=True)
+
+    dense_ann_path = os.path.join(dense_labels_dir, "annotations.json")
+    with open(dense_ann_path, "r", encoding="utf-8") as f:
+        coco = json.load(f)
+
+    for img in coco.get("images", []):
+        fname = img.get("file_name")
+        if not fname:
+            continue
+        src = os.path.join(dense_frames_dir, fname)
+        dst = os.path.join(sparse_frames_dir, fname)
+        if os.path.exists(src):
+            shutil.copy2(src, dst)
+    with open(os.path.join(sparse_labels_dir, "annotations.json"), "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "images": coco.get("images", []),
+                "annotations": coco.get("annotations", []),
+                "categories": coco.get("categories", []),
+            },
+            f,
+            indent=2,
+        )
 
 
 def _prune_auxiliary_frame_files(frames_dir):
@@ -472,11 +563,17 @@ def _assemble_video(frames_dir, video_path, fps=FPS, frame_ext="png"):
         except Exception:
             pass
     if ffmpeg:
-        pattern = os.path.join(frames_dir, f"frame_%04d.{frame_ext}")
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False, encoding="utf-8") as manifest:
+            manifest_path = manifest.name
+            for fname in frame_files:
+                frame_path = os.path.join(frames_dir, fname).replace("'", "'\\''")
+                manifest.write(f"file '{frame_path}'\n")
         cmd = [
             ffmpeg, "-y",
-            "-framerate", str(fps),
-            "-i", pattern,
+            "-r", str(fps),
+            "-f", "concat",
+            "-safe", "0",
+            "-i", manifest_path,
             "-c:v", "libx264",
             "-preset", "slow",
             "-crf", "16",
@@ -485,6 +582,10 @@ def _assemble_video(frames_dir, video_path, fps=FPS, frame_ext="png"):
             video_path,
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            os.remove(manifest_path)
+        except OSError:
+            pass
         if result.returncode != 0:
             raise RuntimeError(f"ffmpeg failed:\n{result.stderr}")
         print(f"Video assembled (H.264): {video_path} ({len(frame_files)} frames)")

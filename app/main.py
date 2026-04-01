@@ -57,6 +57,7 @@ REAL_UPLOAD_DIR = DEFAULT_UPLOAD_DIR
 REAL_FRAMES_DIR = DEFAULT_FRAMES_DIR
 REAL_VIDEOS_DIR = DEFAULT_VIDEOS_DIR
 REAL_LABELS_DIR = DEFAULT_LABELS_DIR
+REAL_TRAIN_FRAME_STRIDE = 10
 
 
 # --- Testing mode: use temp directory instead of outputs/ ---
@@ -238,11 +239,13 @@ def _generate_video_for_image_with_params(
     frames_root=None,
     labels_root=None,
     videos_root=None,
+    save_every_n=None,
 ):
     t0 = time.time()
     resolved_frames_root = frames_root or (REAL_FRAMES_DIR if use_real_outputs else FRAMES_DIR)
     resolved_labels_root = labels_root or (REAL_LABELS_DIR if use_real_outputs else LABELS_DIR)
     resolved_videos_root = videos_root or (REAL_VIDEOS_DIR if use_real_outputs else VIDEOS_DIR)
+    resolved_save_every_n = save_every_n or (REAL_TRAIN_FRAME_STRIDE if use_real_outputs else 1)
     result = generate_video(
         image_path,
         frames_root=resolved_frames_root,
@@ -256,6 +259,8 @@ def _generate_video_for_image_with_params(
         save_mask_previews=not use_real_outputs,
         save_movement_masks=not use_real_outputs,
         keep_only_frame_outputs=use_real_outputs,
+        save_every_n=resolved_save_every_n,
+        keep_full_annotations=use_real_outputs,
     )
     rid = result.get("video_id") or result.get("job_id")
     if rid:
@@ -553,6 +558,7 @@ def _run_real_generation_batch(
             "video_id": video_id,
             "kitchen_id": kitchen_id,
             "split": split_name,
+            "train": 1 if split_name == "train" else 0,
             "length_of_video_seconds": round(length_seconds, 2),
             "fps": fps,
             "mouse_count": int(pest_counts.get("mouse", 0)),

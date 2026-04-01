@@ -15,7 +15,11 @@ The web app has four tabs:
 - Configurable: length, fps, number of videos, optional MP4 output.
 - Progress bar + live polling + 5-row paginated results.
 - Writes metadata to `outputs/generated_state.json`.
-- Keeps only `frame_*.png` images in each real job folder (aux previews/masks are pruned).
+- Uses [`generator/kitchen_img/test_train_split.csv`](generator/kitchen_img/test_train_split.csv) to assign each curated kitchen to train or test.
+- Future real-generation outputs are written under `outputs/train/` or `outputs/test/`.
+- Persists sparse training frames named `frame_0001`, `frame_0010`, `frame_0020`, ...
+- Keeps full `annotations.json` metadata even when only sparse frame images are saved.
+- If MP4 output is enabled, a dense temporary frame set is rendered for smooth video assembly, then only the sparse training frames are kept permanently.
 
 3. `Kitchen Curator`
 - Review `uncurated_img/` images.
@@ -61,15 +65,24 @@ flask --app app.main run
 ```text
 outputs/
   uploads/                  # ad-hoc uploads
-  frames/{job_id}/          # rendered frames (test jobs may also include previews)
-  labels/{job_id}/          # COCO annotations.json
-  videos/{job_id}.mp4       # optional (if MP4 enabled)
+  frames/{job_id}/          # legacy real/test outputs
+  labels/{job_id}/          # legacy COCO annotations.json
+  videos/{job_id}.mp4       # legacy optional MP4 outputs
   generated_state.json      # real-batch metadata state
+  train/
+    frames/{job_id}/        # sparse real-generation frame images
+    labels/{job_id}/        # full COCO annotations.json for the job
+    videos/{job_id}.mp4     # optional real-generation MP4s
+  test/
+    frames/{job_id}/
+    labels/{job_id}/
+    videos/{job_id}.mp4
 
 generator/kitchen_img/
   uncurated_img/            # downloaded or Gemini-generated, pending review
   curated_img/              # approved kitchens, named as kitchen_####.jpg
   download_state.json       # seen Places IDs + kitchen/source mapping
+  test_train_split.csv      # kitchen-level 75/25 train/test assignment
 ```
 
 ## State Files
@@ -84,6 +97,8 @@ Each generation record currently includes:
 - `job_id`
 - `video_id`
 - `kitchen_id` (filename in curated set, e.g. `kitchen_0016.jpg`)
+- `split` (`train` or `test`) for newer real-generation rows
+- `train` (`1` for train, `0` for test) for newer real-generation rows
 - `length_of_video_seconds`
 - `fps`
 - `mouse_count`
@@ -143,8 +158,8 @@ Implemented in `generator/pipeline.py`:
 
 ```bash
 python -m training.prepare_dataset \
-  --frames_root outputs/frames \
-  --labels_root outputs/labels \
+  --frames_root outputs/train/frames \
+  --labels_root outputs/train/labels \
   --output_dir outputs/dataset \
   --val_frac 0.1 --test_frac 0.1 \
   --every_n 10
@@ -153,6 +168,18 @@ python -m training.prepare_dataset \
 Current split logic:
 - split by **job/video** (not frame)
 - default ~80/10/10 train/val/test
+- loader filters by frame filenames actually present on disk, so it works with dense legacy outputs and newer sparse-saved outputs
+- for newer real-generation outputs, frame images are sparse but `annotations.json` may still contain entries for unsaved frames; this is expected and handled by the loader
+
+### Kitchen Train/Test Split
+
+- `generator/kitchen_img/test_train_split.csv` is the source of truth for kitchen-level train/test assignment.
+- It has columns `id,train`, where `id` is the curated kitchen filename and `train` is `1` for train, `0` for test.
+- Regenerate it with:
+
+```bash
+python3 generator/kitchen_img/test_train_split.py
+```
 
 ### 2) Train DETR
 

@@ -42,6 +42,8 @@ def composite_frames(
     normals=None,
     save_mask_previews=True,
     frame_format="png",
+    save_every_n=1,
+    keep_full_annotations=False,
 ):
     """Render all frames by compositing pest sprites onto the background image.
 
@@ -81,10 +83,17 @@ def composite_frames(
         fps:           Frames per second (used for depth-aware speed cap).
         save_mask_previews: Whether to save per-pest dynamic mask preview PNGs.
         frame_format: Output frame format. Supported: png, jpg/jpeg, webp.
+        save_every_n: Persist frame 1 and then every Nth rendered frame while
+            still simulating the full trajectory. Saved frame numbering matches
+            the original timeline.
+        keep_full_annotations: If True, write COCO image/annotation entries for
+            all simulated frames even when only a sparse subset of frame images
+            is persisted on disk.
     """
     os.makedirs(frames_dir, exist_ok=True)
     os.makedirs(labels_dir, exist_ok=True)
     frame_ext = _normalize_frame_format(frame_format)
+    save_every_n = max(1, int(save_every_n or 1))
 
     # Load and resize background once
     bg = Image.open(image_path).convert("RGBA")
@@ -232,7 +241,8 @@ def composite_frames(
     ann_id = 1
 
     for frame_idx in range(num_frames):
-        frame_num = frame_idx + 1   # 1-based for filenames and COCO
+        frame_num = frame_idx + 1
+        persist_frame = frame_num == 1 or frame_num % save_every_n == 0
 
         frame_img = bg.copy()
 
@@ -269,6 +279,8 @@ def composite_frames(
             bbox_h  = bbox_y2 - bbox_y
 
             if bbox_w > 0 and bbox_h > 0:
+                if not persist_frame and not keep_full_annotations:
+                    continue
                 coco_annotations.append({
                     "id":          ann_id,
                     "image_id":    frame_num,
@@ -279,10 +291,11 @@ def composite_frames(
                 })
                 ann_id += 1
 
-        frame_path = os.path.join(frames_dir, f"frame_{frame_num:04d}.{frame_ext}")
-        _save_frame_image(frame_img.convert("RGB"), frame_path, frame_ext)
+        if persist_frame:
+            frame_path = os.path.join(frames_dir, f"frame_{frame_num:04d}.{frame_ext}")
+            _save_frame_image(frame_img.convert("RGB"), frame_path, frame_ext)
 
-        if save_mask_previews:
+        if persist_frame and save_mask_previews:
             # --- Per-pest dynamic "pest vision" mask preview ---
             # Each pest gets its own preview: the movement probability mask for the
             # surface it currently stands on, with a dot showing its position.
@@ -308,12 +321,13 @@ def composite_frames(
                     os.path.join(frames_dir, f"mask_preview_pest{pest_idx}_{ptype}_{frame_num:04d}.png")
                 )
 
-        coco_images.append({
-            "id":        frame_num,
-            "file_name": f"frame_{frame_num:04d}.{frame_ext}",
-            "width":     render_width,
-            "height":    render_height,
-        })
+        if persist_frame or keep_full_annotations:
+            coco_images.append({
+                "id":        frame_num,
+                "file_name": f"frame_{frame_num:04d}.{frame_ext}",
+                "width":     render_width,
+                "height":    render_height,
+            })
 
     save_coco_dataset(
         coco_images,
