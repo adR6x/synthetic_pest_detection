@@ -275,7 +275,7 @@ def _generate_video_for_image_with_params(
 
 def _render_generate_page(job_context=None):
     page = _parse_positive_int(request.args.get("page", 1), default=1)
-    test_length_seconds = _parse_positive_float(request.args.get("length_seconds"), default=30.0)
+    test_length_seconds = _parse_positive_float(request.args.get("length_seconds"), default=24.0)
     test_fps = _parse_positive_int(request.args.get("fps"), default=10)
     curated = _get_curated_page(page)
     context = {
@@ -731,7 +731,7 @@ def upload():
         return redirect(url_for("index"))
 
     page = _parse_positive_int(request.form.get("page", 1), default=1)
-    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=30.0)
+    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=24.0)
     fps = _parse_positive_int(request.form.get("fps"), default=10)
     num_frames = max(1, int(round(length_seconds * fps)))
 
@@ -759,7 +759,7 @@ def upload():
 def generate_from_curated():
     filename = (request.form.get("filename") or "").strip()
     page = _parse_positive_int(request.form.get("page", 1), default=1)
-    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=30.0)
+    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=24.0)
     fps = _parse_positive_int(request.form.get("fps"), default=10)
     num_frames = max(1, int(round(length_seconds * fps)))
 
@@ -888,7 +888,7 @@ def real_generator():
         flash(f"Real generation batch not found: {batch_id}")
 
     default_form = {
-        "length_seconds": 30,
+        "length_seconds": 24,
         "fps": 10,
         "num_videos": 5,
         "generate_mp4": False,
@@ -953,7 +953,7 @@ def real_generator_upload():
 def real_generator_generate():
     page = _parse_positive_int(request.form.get("rpage", 1), default=1)
 
-    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=30.0)
+    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=24.0)
     fps = _parse_positive_int(request.form.get("fps"), default=10)
     requested_videos = _parse_positive_int(request.form.get("num_videos"), default=1)
     generate_mp4 = str(request.form.get("generate_mp4", "")).strip().lower() in {"1", "true", "on", "yes"}
@@ -1419,7 +1419,7 @@ def kitchen_generator_discard():
 def regenerate(job_id):
     image_path = _source_images.get(job_id)
     page = _parse_positive_int(request.form.get("page", 1), default=1)
-    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=30.0)
+    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=24.0)
     fps = _parse_positive_int(request.form.get("fps"), default=10)
     num_frames = max(1, int(round(length_seconds * fps)))
     if not image_path or not os.path.exists(image_path):

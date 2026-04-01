@@ -615,7 +615,7 @@
                             type="number"
                             step="0.5"
                             min="0.5"
-                            value="{{ test_form_values.length_seconds if test_form_values else 30 }}"
+                            value="{{ test_form_values.length_seconds if test_form_values else 24 }}"
                             required
                         >
                     </label>
@@ -653,7 +653,7 @@
                     <form action="{{ url_for('generate_from_curated') }}" method="post" class="testgen-submit">
                         <input type="hidden" name="filename" value="{{ image_name }}">
                         <input type="hidden" name="page" value="{{ curated_page }}">
-                        <input type="hidden" name="length_seconds" class="testgen-length-input" value="{{ test_form_values.length_seconds if test_form_values else 30 }}">
+                        <input type="hidden" name="length_seconds" class="testgen-length-input" value="{{ test_form_values.length_seconds if test_form_values else 24 }}">
                         <input type="hidden" name="fps" class="testgen-fps-input" value="{{ test_form_values.fps if test_form_values else 10 }}">
                         <button type="submit" class="btn">Generate Video</button>
                     </form>
@@ -684,7 +684,7 @@
         <p class="subtitle">Or Upload A New Kitchen Image</p>
         <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data" class="upload-form testgen-submit">
             <input type="hidden" name="page" value="{{ curated_page|default(1) }}">
-            <input type="hidden" name="length_seconds" class="testgen-length-input" value="{{ test_form_values.length_seconds if test_form_values else 30 }}">
+            <input type="hidden" name="length_seconds" class="testgen-length-input" value="{{ test_form_values.length_seconds if test_form_values else 24 }}">
             <input type="hidden" name="fps" class="testgen-fps-input" value="{{ test_form_values.fps if test_form_values else 10 }}">
             <label for="image" class="file-label" id="file-label">
                 Choose kitchen image
@@ -754,7 +754,7 @@
 
         <form action="{{ url_for('regenerate', job_id=job_id) }}" method="post" style="margin-bottom:16px;">
             <input type="hidden" name="page" value="{{ curated_page|default(1) }}">
-            <input type="hidden" name="length_seconds" value="{{ test_form_values.length_seconds if test_form_values else 30 }}">
+            <input type="hidden" name="length_seconds" value="{{ test_form_values.length_seconds if test_form_values else 24 }}">
             <input type="hidden" name="fps" value="{{ test_form_values.fps if test_form_values else 10 }}">
             <button type="submit" class="btn">&#x21BA; Regenerate with Same Image</button>
         </form>
