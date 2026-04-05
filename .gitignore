@@ -1,5 +1,6 @@
 # Claude
 .claude/
+.codex
 
 # Environment / secrets (never commit)
 .env
