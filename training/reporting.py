@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import platform
 import re
+import shutil
 import subprocess
 import uuid
 from datetime import datetime, timezone
@@ -56,6 +57,51 @@ def append_jsonl(path: str | Path, row: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(row) + "\n")
+
+
+def make_model_repo_layout(model_repo_dir: str | Path, run_id: str) -> dict:
+    """Create the model artifact layout inside a local HF model repo clone."""
+    root = Path(model_repo_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    runs_root = root / "runs"
+    run_root = runs_root / run_id
+    run_root.mkdir(parents=True, exist_ok=True)
+
+    best_dir = run_root / "best"
+    last_dir = run_root / "last"
+    checkpoints_dir = run_root / "checkpoints"
+    checkpoints_dir.mkdir(parents=True, exist_ok=True)
+
+    return {
+        "root": root,
+        "runs_root": runs_root,
+        "run_root": run_root,
+        "best_dir": best_dir,
+        "last_dir": last_dir,
+        "checkpoints_dir": checkpoints_dir,
+        "best_state_path": root / "best_mdl_state.jsonl",
+        "last_state_path": root / "last_mdl_state.jsonl",
+        "checkpoint_state_path": root / "checkpoint_mdl_state.jsonl",
+    }
+
+
+def save_model_bundle(
+    target_dir: str | Path,
+    model,
+    processor,
+    training_state: dict | None = None,
+) -> Path:
+    """Persist a model, processor, and optional trainer state to one directory."""
+    target_dir = Path(target_dir)
+    if target_dir.exists():
+        shutil.rmtree(target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    model.save_pretrained(target_dir)
+    processor.save_pretrained(target_dir)
+    if training_state is not None:
+        torch.save(training_state, target_dir / "trainer_state.pt")
+    return target_dir
 
 
 def try_git_commit(project_root: str | Path | None = None) -> str | None:

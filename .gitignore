@@ -68,3 +68,9 @@ Thumbs.db
 
 # TripoSR clone (created by setup scripts)
 .triposr_clone/
+
+# HuggingFace dataset repo (managed by its own git remote)
+pest_detection_dataset/
+
+# Trained model checkpoints
+pest_detection_model/

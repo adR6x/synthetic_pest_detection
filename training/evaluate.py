@@ -29,10 +29,14 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--output_json", default=None)
     parser.add_argument("--evaluation_dir", default=None)
+    parser.add_argument("--model_repo_dir", default="./pest_detection_model")
     args = parser.parse_args()
 
     device = get_device()
     print(f"Device: {device}")
+
+    if args.evaluation_dir is None:
+        args.evaluation_dir = str(Path(args.model_repo_dir) / "evaluations")
 
     artifacts = make_run_artifacts(
         experiment_name=f"evaluate_{Path(args.model_path).name}_{args.split}",

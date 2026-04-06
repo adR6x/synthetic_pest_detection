@@ -78,9 +78,15 @@ app.secret_key = "synthetic-pest-gen-dev-key"
 #   generator/kitchen_img/curated_img    (approved images)
 KITCHEN_ROOT_DIR = os.path.dirname(UNCURATED_IMG_DIR)
 CURATED_IMG_DIR = os.path.join(KITCHEN_ROOT_DIR, "curated_img")
-TRAIN_TEST_SPLIT_PATH = os.path.join(KITCHEN_ROOT_DIR, "test_train_split.csv")
+TRAIN_TEST_SPLIT_PATH = os.path.join(KITCHEN_ROOT_DIR, "tain_split.csv")
 
-# Ensure output directories exist
+# HuggingFace dataset directory — the cloned repo that lives inside the project.
+HF_DATASET_DIR = os.path.normpath(os.path.join(PROJECT_OUTPUT_DIR, "..", "pest_detection_dataset"))
+
+# generated_state.json lives directly in the HF dataset repo.
+GENERATED_STATE_PATH = os.path.join(HF_DATASET_DIR, "generated_state.json")
+
+# Ensure test-tab output directories exist (real generator uses HF_DATASET_DIR directly).
 for d in [
     UPLOAD_DIR,
     FRAMES_DIR,
@@ -94,8 +100,11 @@ for d in [
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "webp"}
 CURATOR_PREVIEW_DIR = os.path.join(KITCHEN_ROOT_DIR, ".curator_cache")
 CURATED_PAGE_SIZE = 5
-GENERATED_STATE_PATH = os.path.join(PROJECT_OUTPUT_DIR, "generated_state.json")
 os.makedirs(CURATOR_PREVIEW_DIR, exist_ok=True)
+
+# Temp directory for transient per-job label files (not persisted anywhere).
+import tempfile as _tempfile
+_REAL_GEN_TEMP_DIR = _tempfile.mkdtemp(prefix="pest_gen_labels_")
 
 
 # Stores total render time (seconds) keyed by job_id
@@ -117,6 +126,17 @@ _download_status_lock = threading.Lock()
 _real_state_lock = threading.Lock()
 _real_batches = {}
 _real_batches_lock = threading.Lock()
+
+_HF_SPLIT_LOCKS = {
+    "train": threading.Lock(),
+    "val":   threading.Lock(),
+    "test":  threading.Lock(),
+}
+_HF_DEFAULT_CATEGORIES = [
+    {"id": 1, "name": "mouse",     "supercategory": "pest"},
+    {"id": 2, "name": "rat",       "supercategory": "pest"},
+    {"id": 3, "name": "cockroach", "supercategory": "pest"},
+]
 REAL_BATCH_MAX_TRACKED = 25
 _kitchen_id_lock = threading.Lock()
 _kitchen_id_counter = 0
@@ -362,29 +382,54 @@ def _load_train_test_split():
     split_map = {}
     with open(TRAIN_TEST_SPLIT_PATH, "r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
-        if reader.fieldnames != ["id", "train"]:
+        fieldnames = list(reader.fieldnames or [])
+
+        # New format: id, train, val, test  (one-hot columns)
+        if fieldnames == ["id", "train", "val", "test"]:
+            for row in reader:
+                kitchen_id = (row.get("id") or "").strip()
+                if not kitchen_id:
+                    continue
+                if row.get("train", "0").strip() == "1":
+                    split_map[kitchen_id] = "train"
+                elif row.get("val", "0").strip() == "1":
+                    split_map[kitchen_id] = "val"
+                elif row.get("test", "0").strip() == "1":
+                    split_map[kitchen_id] = "test"
+                else:
+                    raise ValueError(
+                        f"No split assigned for {kitchen_id!r} in {TRAIN_TEST_SPLIT_PATH}."
+                    )
+
+        # Legacy format: id, train  (1=train, 0=test)
+        elif fieldnames == ["id", "train"]:
+            for row in reader:
+                kitchen_id = (row.get("id") or "").strip()
+                train_flag = (row.get("train") or "").strip()
+                if not kitchen_id:
+                    continue
+                if train_flag not in {"0", "1"}:
+                    raise ValueError(
+                        f"Invalid train flag for {kitchen_id!r}: {train_flag!r}. Expected 0 or 1."
+                    )
+                split_map[kitchen_id] = "train" if train_flag == "1" else "test"
+
+        else:
             raise ValueError(
-                f"{TRAIN_TEST_SPLIT_PATH} must have exactly these columns: id, train"
+                f"{TRAIN_TEST_SPLIT_PATH} must have columns [id, train, val, test] "
+                f"or legacy [id, train]. Got: {fieldnames}"
             )
-        for row in reader:
-            kitchen_id = (row.get("id") or "").strip()
-            train_flag = (row.get("train") or "").strip()
-            if not kitchen_id:
-                continue
-            if train_flag not in {"0", "1"}:
-                raise ValueError(
-                    f"Invalid train flag for {kitchen_id!r}: {train_flag!r}. Expected 0 or 1."
-                )
-            split_map[kitchen_id] = "train" if train_flag == "1" else "test"
+
     return split_map
 
 
 def _real_output_roots_for_split(split_name):
-    split_root = os.path.join(PROJECT_OUTPUT_DIR, split_name)
+    # Frames go directly into the HF dataset repo.
+    # Per-job label files and videos are transient — written to a session temp dir.
     return {
-        "frames_root": os.path.join(split_root, "frames"),
-        "labels_root": os.path.join(split_root, "labels"),
-        "videos_root": os.path.join(split_root, "videos"),
+        "frames_root": os.path.join(HF_DATASET_DIR, "images", split_name),
+        "labels_root": os.path.join(_REAL_GEN_TEMP_DIR, split_name, "labels"),
+        "videos_root": os.path.join(_REAL_GEN_TEMP_DIR, split_name, "videos"),
     }
 
 
@@ -450,6 +495,90 @@ def _append_generated_state_rows(rows):
         current.extend(rows)
         state["generated_videos"] = current
         _save_generated_state(state)
+
+
+def _append_to_hf_dataset(row, _unused=None):
+    """Update the split annotation JSON in the cloned HF dataset repo for one job.
+
+    Frames are already written directly to pest_detection_dataset/images/{split}/{job_id}/
+    by the generator, so only the global annotations/{split}.json needs updating.
+    generated_state.json is handled by _append_generated_state_rows (same file now).
+
+    Uses per-split locks so parallel workers on different splits don't block each other.
+    Silently skips if pest_detection_dataset/ has not been cloned.
+    """
+    if not os.path.isdir(HF_DATASET_DIR):
+        return
+
+    job_id   = row["job_id"]
+    split    = row["split"]
+    ann_lock = _HF_SPLIT_LOCKS.get(split)
+    if ann_lock is None:
+        return
+
+    # Discover frames already written to the HF directory by the generator.
+    hf_frames_dir = os.path.join(HF_DATASET_DIR, "images", split, job_id)
+    frame_fnames = []
+    if os.path.isdir(hf_frames_dir):
+        frame_fnames = sorted(
+            f for f in os.listdir(hf_frames_dir)
+            if re.match(r"^frame_\d+\.(png|jpg|jpeg|webp)$", f, re.IGNORECASE)
+        )
+
+    if not frame_fnames:
+        return
+
+    # Load per-job annotations.json from the temp labels dir.
+    per_job_ann_path = os.path.join(
+        _real_output_roots_for_split(split)["labels_root"], job_id, "annotations.json"
+    )
+    per_job_coco = {"images": [], "annotations": [], "categories": []}
+    if os.path.exists(per_job_ann_path):
+        with open(per_job_ann_path, "r", encoding="utf-8") as f:
+            per_job_coco = json.load(f)
+
+    local_fname_to_id = {img["file_name"]: img["id"] for img in per_job_coco.get("images", [])}
+    anns_by_local_id  = {}
+    for ann in per_job_coco.get("annotations", []):
+        anns_by_local_id.setdefault(ann["image_id"], []).append(ann)
+
+    # Append to split annotation JSON — serialised per split.
+    hf_ann_path = os.path.join(HF_DATASET_DIR, "annotations", f"{split}.json")
+    with ann_lock:
+        if os.path.exists(hf_ann_path):
+            with open(hf_ann_path, "r", encoding="utf-8") as f:
+                hf_coco = json.load(f)
+        else:
+            hf_coco = {"images": [], "annotations": [], "categories": list(_HF_DEFAULT_CATEGORIES)}
+
+        img_id = max((img["id"] for img in hf_coco.get("images", [])), default=0) + 1
+        ann_id = max((a["id"]  for a  in hf_coco.get("annotations", [])), default=0) + 1
+
+        for fname in frame_fnames:
+            local_img_id = local_fname_to_id.get(fname)
+            hf_coco["images"].append({
+                "id":        img_id,
+                "file_name": f"{job_id}/{fname}",
+                "width":     640,
+                "height":    480,
+            })
+            for ann in anns_by_local_id.get(local_img_id, []):
+                hf_coco["annotations"].append({
+                    "id":          ann_id,
+                    "image_id":    img_id,
+                    "category_id": ann["category_id"],
+                    "bbox":        ann["bbox"],
+                    "area":        ann.get("area", ann["bbox"][2] * ann["bbox"][3]),
+                    "iscrowd":     ann.get("iscrowd", 0),
+                })
+                ann_id += 1
+            img_id += 1
+
+        if not hf_coco.get("categories"):
+            hf_coco["categories"] = per_job_coco.get("categories") or list(_HF_DEFAULT_CATEGORIES)
+
+        with open(hf_ann_path, "w", encoding="utf-8") as f:
+            json.dump(hf_coco, f, indent=2)
 
 
 def _prune_real_batches_locked():
@@ -531,7 +660,7 @@ def _run_real_generation_batch(
         image_path = os.path.join(CURATED_IMG_DIR, curated_filename)
         kitchen_id = _kitchen_image_id(curated_filename)
         split_name = split_map.get(kitchen_id)
-        if split_name not in {"train", "test"}:
+        if split_name not in {"train", "val", "test"}:
             raise ValueError(
                 f"Kitchen {kitchen_id} is missing from {TRAIN_TEST_SPLIT_PATH}. "
                 "Regenerate the split file before running the real generator."
@@ -567,8 +696,8 @@ def _run_real_generation_batch(
             "time_taken_to_generate_seconds": elapsed,
             "pest_size_multiplier": float(result.get("pest_size_multiplier", 1.0)),
             "pest_generation_metadata": pest_generation_metadata,
-            "frames_dir": os.path.join("outputs", split_name, "frames", video_id),
-            "labels_dir": os.path.join("outputs", split_name, "labels", video_id),
+            "frames_dir": f"images/{split_name}/{video_id}",
+            "labels_dir": f"annotations/{split_name}.json",
             "video_path": result.get("video_path"),
         }
 
@@ -595,6 +724,11 @@ def _run_real_generation_batch(
                         _append_generated_state_rows([row])
                     except Exception as e:
                         failures.append(f"{filename}: failed writing generated_state.json: {e}")
+                    # Update HF annotation JSON for this job.
+                    try:
+                        _append_to_hf_dataset(row, None)
+                    except Exception as e:
+                        failures.append(f"{filename}: failed updating HF annotations: {e}")
                 except Exception as e:
                     failures.append(f"{filename}: {e}")
                 finally:
@@ -953,10 +1087,10 @@ def real_generator_upload():
 def real_generator_generate():
     page = _parse_positive_int(request.form.get("rpage", 1), default=1)
 
-    length_seconds = _parse_positive_float(request.form.get("length_seconds"), default=24.0)
-    fps = _parse_positive_int(request.form.get("fps"), default=10)
+    length_seconds = 24.0
+    fps = 10
     requested_videos = _parse_positive_int(request.form.get("num_videos"), default=1)
-    generate_mp4 = str(request.form.get("generate_mp4", "")).strip().lower() in {"1", "true", "on", "yes"}
+    generate_mp4 = False
 
     curated = list_curated_images()
     if not curated:

@@ -30,6 +30,8 @@ from training.reporting import (
     append_jsonl,
     build_environment_metadata,
     make_run_artifacts,
+    make_model_repo_layout,
+    save_model_bundle,
     save_json,
     try_git_commit,
     utc_now_iso,
@@ -100,6 +102,78 @@ def _save_results_csv(csv_path, row):
     print(f"Results saved to: {csv_path}")
 
 
+def _trainer_state_payload(args, epoch, global_step, best_val_loss, optimizer, scheduler):
+    return {
+        "epoch": epoch,
+        "global_step": global_step,
+        "best_val_loss": best_val_loss,
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "train_args": vars(args),
+    }
+
+
+def _build_model_state_record(
+    *,
+    record_type,
+    model_dir,
+    model_repo_dir,
+    run_id,
+    experiment_name,
+    args,
+    epoch,
+    global_step,
+    train_loss,
+    val_loss,
+    best_val_loss_so_far,
+    device,
+    git_commit,
+    dataset_source,
+    dataset_revision,
+    train_split,
+    val_split,
+    evaluation_report_path,
+    iteration_log_path,
+):
+    model_dir = Path(model_dir)
+    model_repo_dir = Path(model_repo_dir)
+    return {
+        "timestamp_utc": utc_now_iso(),
+        "run_id": run_id,
+        "experiment_name": experiment_name,
+        "record_type": record_type,
+        "epoch": epoch,
+        "global_step": global_step,
+        "model_dir": str(model_dir.resolve()),
+        "model_rel_dir": str(model_dir.relative_to(model_repo_dir)),
+        "model_repo_dir": str(model_repo_dir.resolve()),
+        "evaluation_report_path": str(Path(evaluation_report_path).resolve()),
+        "iteration_log_path": str(Path(iteration_log_path).resolve()),
+        "source_model_name": args.model_name,
+        "dataset_source": dataset_source,
+        "dataset_revision": dataset_revision,
+        "train_split": train_split,
+        "val_split": val_split,
+        "eval_split": args.final_eval_split,
+        "batch_size": args.batch_size,
+        "learning_rate": args.lr,
+        "weight_decay": DETR_WEIGHT_DECAY,
+        "freeze_backbone": args.freeze_backbone,
+        "partial_freeze": args.partial_freeze,
+        "augment": args.augment,
+        "seed": args.seed,
+        "checkpoint_every": args.checkpoint_every,
+        "train_loss": round(train_loss, 6),
+        "val_loss": round(val_loss, 6),
+        "best_val_loss_so_far": round(best_val_loss_so_far, 6),
+        "eval_threshold": args.eval_threshold,
+        "primary_metric_name": "val_loss",
+        "primary_metric_value": round(val_loss, 6),
+        "device": str(device),
+        "git_commit": git_commit,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -129,7 +203,14 @@ def main():
     parser.add_argument("--final_eval_split", default="test",
                         choices=["train", "val", "validation", "test"])
     parser.add_argument("--evaluation_dir", default=None)
+    parser.add_argument("--model_repo_dir", default="./pest_detection_model",
+                        help="Local clone of the HF model repo where best/last/checkpoints are saved.")
+    parser.add_argument("--checkpoint_every", type=int, default=2,
+                        help="Save a numbered checkpoint every N epochs.")
     args = parser.parse_args()
+
+    if args.evaluation_dir is None:
+        args.evaluation_dir = str(Path(args.model_repo_dir) / "evaluations")
 
     artifacts = make_run_artifacts(args.experiment_name, args.evaluation_dir)
 
@@ -175,11 +256,16 @@ def main():
 
         device = get_device()
         print(f"Device: {device}")
+        git_commit = try_git_commit()
 
         data_root = Path(args.data_dir)
         train_paths = resolve_split_paths(data_root, "train")
         val_paths = resolve_split_paths(data_root, "val")
         dataset_metadata = collect_dataset_metadata(data_root)
+        model_repo_layout = make_model_repo_layout(args.model_repo_dir, artifacts["run_id"])
+        model_repo_root = model_repo_layout["root"]
+        dataset_source = args.hf_dataset or str(data_root)
+        dataset_revision = args.hf_revision or infer_hf_revision_from_cache_path(data_root)
 
         print(f"Loading model: {args.model_name}")
         model, processor = create_detr_model(args.model_name)
@@ -270,12 +356,114 @@ def main():
             print(f"Epoch {epoch:3d}: Train={train_loss:.4f}  Val={val_loss:.4f}  "
                   f"({epoch_seconds:.0f}s)")
 
+            trainer_state = _trainer_state_payload(
+                args=args,
+                epoch=epoch,
+                global_step=global_step,
+                best_val_loss=min(best_val_loss, val_loss),
+                optimizer=optimizer,
+                scheduler=scheduler,
+            )
+            last_dir = save_model_bundle(
+                model_repo_layout["last_dir"],
+                model,
+                processor,
+                trainer_state,
+            )
+            append_jsonl(
+                model_repo_layout["last_state_path"],
+                _build_model_state_record(
+                    record_type="last",
+                    model_dir=last_dir,
+                    model_repo_dir=model_repo_root,
+                    run_id=artifacts["run_id"],
+                    experiment_name=args.experiment_name,
+                    args=args,
+                    epoch=epoch,
+                    global_step=global_step,
+                    train_loss=train_loss,
+                    val_loss=val_loss,
+                    best_val_loss_so_far=min(best_val_loss, val_loss),
+                    device=device,
+                    git_commit=git_commit,
+                    dataset_source=dataset_source,
+                    dataset_revision=dataset_revision,
+                    train_split=train_paths["resolved_image_split"],
+                    val_split=val_paths["resolved_image_split"],
+                    evaluation_report_path=artifacts["report_path"],
+                    iteration_log_path=artifacts["iteration_log_path"],
+                ),
+            )
+
+            if args.checkpoint_every > 0 and epoch % args.checkpoint_every == 0:
+                checkpoint_dir = save_model_bundle(
+                    model_repo_layout["checkpoints_dir"] / f"epoch_{epoch:03d}",
+                    model,
+                    processor,
+                    trainer_state,
+                )
+                append_jsonl(
+                    model_repo_layout["checkpoint_state_path"],
+                    _build_model_state_record(
+                        record_type="checkpoint",
+                        model_dir=checkpoint_dir,
+                        model_repo_dir=model_repo_root,
+                        run_id=artifacts["run_id"],
+                        experiment_name=args.experiment_name,
+                        args=args,
+                        epoch=epoch,
+                        global_step=global_step,
+                        train_loss=train_loss,
+                        val_loss=val_loss,
+                        best_val_loss_so_far=min(best_val_loss, val_loss),
+                        device=device,
+                        git_commit=git_commit,
+                        dataset_source=dataset_source,
+                        dataset_revision=dataset_revision,
+                        train_split=train_paths["resolved_image_split"],
+                        val_split=val_paths["resolved_image_split"],
+                        evaluation_report_path=artifacts["report_path"],
+                        iteration_log_path=artifacts["iteration_log_path"],
+                    ),
+                )
+
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                os.makedirs(args.output_dir, exist_ok=True)
-                model.save_pretrained(args.output_dir)
-                processor.save_pretrained(args.output_dir)
-                print(f"  -> Best val loss {val_loss:.4f} — model saved to {args.output_dir}")
+                best_dir = save_model_bundle(
+                    model_repo_layout["best_dir"],
+                    model,
+                    processor,
+                    trainer_state,
+                )
+                if args.output_dir:
+                    output_dir = Path(args.output_dir)
+                    if output_dir.resolve() != best_dir.resolve():
+                        save_model_bundle(output_dir, model, processor, trainer_state)
+                append_jsonl(
+                    model_repo_layout["best_state_path"],
+                    _build_model_state_record(
+                        record_type="best",
+                        model_dir=best_dir,
+                        model_repo_dir=model_repo_root,
+                        run_id=artifacts["run_id"],
+                        experiment_name=args.experiment_name,
+                        args=args,
+                        epoch=epoch,
+                        global_step=global_step,
+                        train_loss=train_loss,
+                        val_loss=val_loss,
+                        best_val_loss_so_far=best_val_loss,
+                        device=device,
+                        git_commit=git_commit,
+                        dataset_source=dataset_source,
+                        dataset_revision=dataset_revision,
+                        train_split=train_paths["resolved_image_split"],
+                        val_split=val_paths["resolved_image_split"],
+                        evaluation_report_path=artifacts["report_path"],
+                        iteration_log_path=artifacts["iteration_log_path"],
+                    ),
+                )
+                print(f"  -> Best val loss {val_loss:.4f} — model saved to {best_dir}")
 
         print("-" * 60)
         print(f"Done. Best val loss: {best_val_loss:.4f}")
@@ -289,7 +477,7 @@ def main():
             "lr": args.lr,
         })
 
-        best_model, best_processor = load_model_from_path(args.output_dir, device)
+        best_model, best_processor = load_model_from_path(str(model_repo_layout["best_dir"]), device)
         eval_t0 = time.time()
         final_evaluation = evaluate_model_on_split(
             best_model,
@@ -308,13 +496,22 @@ def main():
                 "base_checkpoint": args.model_name,
                 "output_dir": args.output_dir,
                 "strategy": strategy,
+                "model_repo_dir": str(model_repo_root),
+                "run_model_dir": str(model_repo_layout["run_root"]),
+                "runs_root": str(model_repo_layout["runs_root"]),
+                "best_dir": str(model_repo_layout["best_dir"]),
+                "last_dir": str(model_repo_layout["last_dir"]),
+                "checkpoints_dir": str(model_repo_layout["checkpoints_dir"]),
+                "best_state_path": str(model_repo_layout["best_state_path"]),
+                "last_state_path": str(model_repo_layout["last_state_path"]),
+                "checkpoint_state_path": str(model_repo_layout["checkpoint_state_path"]),
             },
             "dataset": {
                 **dataset_metadata,
                 "source_type": "hf" if args.hf_dataset else "local",
                 "repo_id_or_path": args.hf_dataset or str(data_root),
                 "requested_hf_revision": args.hf_revision,
-                "resolved_hf_revision": infer_hf_revision_from_cache_path(data_root),
+                "resolved_hf_revision": dataset_revision,
             },
             "training": {
                 "epochs_requested": args.epochs,
@@ -338,11 +535,12 @@ def main():
             },
             "evaluation": final_evaluation,
             "environment": build_environment_metadata(device, args.num_workers),
-            "code": {"git_commit": try_git_commit()},
+            "code": {"git_commit": git_commit},
         }
         save_json(artifacts["report_path"], report)
         print(f"Evaluation report saved to: {artifacts['report_path']}")
         print(f"Iteration metrics saved to: {artifacts['iteration_log_path']}")
+        print(f"Model artifacts saved under: {model_repo_root}")
     except Exception as exc:
         failure_report = {
             **report_context,
