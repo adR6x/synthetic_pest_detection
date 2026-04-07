@@ -80,8 +80,13 @@ KITCHEN_ROOT_DIR = os.path.dirname(UNCURATED_IMG_DIR)
 CURATED_IMG_DIR = os.path.join(KITCHEN_ROOT_DIR, "curated_img")
 TRAIN_TEST_SPLIT_PATH = os.path.join(KITCHEN_ROOT_DIR, "tain_split.csv")
 
-# HuggingFace dataset directory — the cloned repo that lives inside the project.
-HF_DATASET_DIR = os.path.normpath(os.path.join(PROJECT_OUTPUT_DIR, "..", "pest_detection_dataset"))
+# HuggingFace dataset directory.
+# On HPC (path starts with /hpc) write directly to /cwork for fast storage.
+# Everywhere else keep the default location next to the project root.
+if os.getcwd().startswith("/hpc"):
+    HF_DATASET_DIR = "/cwork/ad641/pest_detection_dataset"
+else:
+    HF_DATASET_DIR = os.path.normpath(os.path.join(PROJECT_OUTPUT_DIR, "..", "pest_detection_dataset"))
 
 # generated_state.json lives directly in the HF dataset repo.
 GENERATED_STATE_PATH = os.path.join(HF_DATASET_DIR, "generated_state.json")

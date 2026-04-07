@@ -41,7 +41,9 @@ BBOX_COLORS = {
 
 def get_device() -> torch.device:
     if torch.cuda.is_available():
-        return torch.device("cuda")
+        best_gpu = max(range(torch.cuda.device_count()),
+                       key=lambda i: torch.cuda.mem_get_info(i)[0])
+        return torch.device(f"cuda:{best_gpu}")
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")

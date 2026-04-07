@@ -32,30 +32,14 @@ done
 [ -z "$PY" ] && error "Python 3.10+ not found."
 info "Using $PY ($(${PY} --version))"
 
-# ─── Core dependencies ────────────────────────────────────────────────────────
-info "Installing core dependencies from requirements.txt..."
+# ─── All dependencies ─────────────────────────────────────────────────────────
+# CUDA is provided by the Apptainer/Singularity container — no CUDA packages needed here.
+info "Installing dependencies from requirements.txt..."
 $PY -m pip install --user --upgrade pip
 $PY -m pip install --user -r "$SCRIPT_DIR/requirements.txt"
 
-# ─── PyTorch / torchvision / timm (CUDA-aware) ───────────────────────────────
-info "Checking CUDA availability for PyTorch install..."
-CUDA_AVAILABLE=0
-if command -v nvidia-smi &>/dev/null && nvidia-smi -L &>/dev/null 2>&1; then
-    CUDA_AVAILABLE=1
-fi
-
-if [ "$CUDA_AVAILABLE" -eq 1 ]; then
-    info "CUDA GPU detected — installing CUDA torch/torchvision..."
-    $PY -m pip install --user --upgrade torch torchvision
-else
-    info "No CUDA GPU detected — installing CPU-only torch/torchvision..."
-    $PY -m pip install --user --upgrade \
-        --index-url https://download.pytorch.org/whl/cpu \
-        torch torchvision
-fi
-
-info "Installing timm (no-deps to avoid overriding torch)..."
-$PY -m pip install --user --upgrade --no-deps timm
+info "Installing torch, torchvision, timm..."
+$PY -m pip install --user --upgrade torch torchvision timm
 
 # ─── mmcv stub ────────────────────────────────────────────────────────────────
 info "Installing mmcv stub (delegates to mmengine)..."

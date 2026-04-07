@@ -27,21 +27,28 @@ def slugify(value: str) -> str:
     return slug or "run"
 
 
-def make_run_artifacts(experiment_name: str, evaluation_dir: str | None = None) -> dict:
-    """Create stable artifact paths for one workflow run."""
+def make_run_artifacts(experiment_name: str, evaluation_dir: str | None = None, foe: float = 1.0) -> dict:
+    """Create stable artifact paths for one workflow run.
+
+    Produces three files:
+        <stem>.json                  -- run metadata, hyperparams, training summary, final eval
+        <stem>_foe<foe>.jsonl        -- mid-training eval on 30 random images per split at each foe fraction
+        <stem>_iterations.jsonl      -- per-batch loss log
+    """
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     run_id = f"run_{uuid.uuid4().hex[:8]}"
-    slug = slugify(experiment_name)
     target_dir = Path(evaluation_dir) if evaluation_dir else PROJECT_ROOT / "evaluation"
     target_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"{timestamp}_{slug}_{run_id}"
+    foe_str = str(foe).replace(".", "_")
+    stem = f"{timestamp}_{run_id}"
 
     return {
         "run_id": run_id,
         "timestamp": timestamp,
         "evaluation_dir": str(target_dir),
-        "report_path": str(target_dir / f"{stem}.json"),
-        "iteration_log_path": str(target_dir / f"{stem}_iterations.jsonl"),
+        "run_report_path": str(target_dir / f"{stem}.json"),
+        "foe_path": str(target_dir / f"{stem}_foe{foe_str}.jsonl"),
+        "iterations_path": str(target_dir / f"{stem}_iterations.jsonl"),
     }
 
 
@@ -50,6 +57,16 @@ def save_json(path: str | Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
+
+
+def update_json(path: str | Path, updates: dict) -> None:
+    """Load an existing JSON file, merge updates into it, and save."""
+    path = Path(path)
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    data.update(updates)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
 
 
 def append_jsonl(path: str | Path, row: dict) -> None:
@@ -69,8 +86,6 @@ def make_model_repo_layout(model_repo_dir: str | Path, run_id: str) -> dict:
 
     best_dir = run_root / "best"
     last_dir = run_root / "last"
-    checkpoints_dir = run_root / "checkpoints"
-    checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
     return {
         "root": root,
@@ -78,10 +93,8 @@ def make_model_repo_layout(model_repo_dir: str | Path, run_id: str) -> dict:
         "run_root": run_root,
         "best_dir": best_dir,
         "last_dir": last_dir,
-        "checkpoints_dir": checkpoints_dir,
         "best_state_path": root / "best_mdl_state.jsonl",
         "last_state_path": root / "last_mdl_state.jsonl",
-        "checkpoint_state_path": root / "checkpoint_mdl_state.jsonl",
     }
 
 

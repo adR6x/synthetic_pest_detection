@@ -33,10 +33,10 @@ def load_model_from_path(model_path: str, device: torch.device):
 
 
 @torch.no_grad()
-def run_detection_on_dataset(model, processor, coco_gt, img_dir, device, threshold=0.3):
+def run_detection_on_dataset(model, processor, coco_gt, img_dir, device, threshold=0.3, img_ids=None):
     """Run the model on all images in a COCO dataset. Returns a predictions list."""
     predictions = []
-    img_ids = coco_gt.getImgIds()
+    img_ids = img_ids if img_ids is not None else coco_gt.getImgIds()
 
     for img_id in tqdm(img_ids, desc="Running detection"):
         img_info = coco_gt.loadImgs(img_id)[0]
@@ -72,12 +72,14 @@ def run_detection_on_dataset(model, processor, coco_gt, img_dir, device, thresho
     return predictions
 
 
-def compute_coco_metrics(coco_gt, predictions):
+def compute_coco_metrics(coco_gt, predictions, img_ids=None):
     if not predictions:
         return {}
 
     coco_dt = coco_gt.loadRes(predictions)
     coco_eval = COCOeval(coco_gt, coco_dt, "bbox")
+    if img_ids is not None:
+        coco_eval.params.imgIds = img_ids
     coco_eval.evaluate()
     coco_eval.accumulate()
     coco_eval.summarize()
@@ -93,9 +95,9 @@ def compute_coco_metrics(coco_gt, predictions):
     }
 
 
-def compute_project_metrics(coco_gt, predictions, iou_threshold=IOU_THRESHOLD):
+def compute_project_metrics(coco_gt, predictions, iou_threshold=IOU_THRESHOLD, img_ids=None):
     """Compute detection-rate-style metrics using class-aware IoU matching."""
-    img_ids = coco_gt.getImgIds()
+    img_ids = img_ids if img_ids is not None else coco_gt.getImgIds()
     gt_by_img = defaultdict(list)
     pred_by_img = defaultdict(list)
 
@@ -231,9 +233,9 @@ def _compute_binary_metrics(y_true, y_score, threshold):
     return metrics
 
 
-def compute_frame_presence_metrics(coco_gt, predictions, threshold):
+def compute_frame_presence_metrics(coco_gt, predictions, threshold, img_ids=None):
     """Compute frame-level presence metrics using max detection score per frame."""
-    img_ids = coco_gt.getImgIds()
+    img_ids = img_ids if img_ids is not None else coco_gt.getImgIds()
     gt_by_img = defaultdict(list)
     pred_by_img = defaultdict(list)
 
@@ -283,7 +285,9 @@ def evaluate_model_on_split(
     device: torch.device,
     threshold: float = 0.5,
     postprocess_threshold: float | None = None,
+    sample_n: int | None = None,
 ):
+    import random as _random
     resolved = resolve_split_paths(data_root, split)
     annotation_path = resolved["annotation_path"]
     image_dir = resolved["image_dir"]
@@ -292,6 +296,12 @@ def evaluate_model_on_split(
     if postprocess_threshold is None:
         postprocess_threshold = max(0.05, threshold * 0.5)
 
+    all_img_ids = coco_gt.getImgIds()
+    if sample_n is not None and sample_n < len(all_img_ids):
+        img_ids = _random.sample(all_img_ids, sample_n)
+    else:
+        img_ids = all_img_ids
+
     predictions = run_detection_on_dataset(
         model,
         processor,
@@ -299,6 +309,7 @@ def evaluate_model_on_split(
         str(image_dir),
         device,
         threshold=postprocess_threshold,
+        img_ids=img_ids,
     )
     thresholded_predictions = [p for p in predictions if p["score"] >= threshold]
 
@@ -308,13 +319,14 @@ def evaluate_model_on_split(
         "annotation_file": resolved["resolved_annotation_file"],
         "image_dir": str(image_dir),
         "annotation_path": str(annotation_path),
-        "num_images": len(coco_gt.getImgIds()),
-        "num_annotations": len(coco_gt.getAnnIds()),
+        "num_images": len(img_ids),
+        "num_annotations": len(coco_gt.getAnnIds(imgIds=img_ids)),
+        "sampled": sample_n is not None,
         "raw_prediction_count": len(predictions),
         "thresholded_prediction_count": len(thresholded_predictions),
         "score_threshold": threshold,
         "postprocess_threshold": postprocess_threshold,
-        "coco_metrics": compute_coco_metrics(coco_gt, predictions),
-        "project_metrics": compute_project_metrics(coco_gt, thresholded_predictions),
-        "frame_presence_metrics": compute_frame_presence_metrics(coco_gt, predictions, threshold),
+        "coco_metrics": compute_coco_metrics(coco_gt, predictions, img_ids=img_ids),
+        "project_metrics": compute_project_metrics(coco_gt, thresholded_predictions, img_ids=img_ids),
+        "frame_presence_metrics": compute_frame_presence_metrics(coco_gt, predictions, threshold, img_ids=img_ids),
     }

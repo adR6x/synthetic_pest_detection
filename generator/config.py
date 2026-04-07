@@ -3,6 +3,15 @@
 import os
 
 
+# ---------------------------------------------------------------------------
+# HPC mode — auto-detected from the working directory path.
+# If the path starts with /hpc (Duke DCC cluster), HPC_MODE is True and
+# generation scans all available GPUs/CPUs to pick the best device.
+# On a local workstation / laptop the path won't start with /hpc, so
+# existing auto-detect behaviour is preserved unchanged.
+# ---------------------------------------------------------------------------
+HPC_MODE = os.getcwd().startswith("/hpc")
+
 # Render settings
 RENDER_WIDTH = 640
 RENDER_HEIGHT = 480

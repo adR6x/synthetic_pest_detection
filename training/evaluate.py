@@ -1,6 +1,7 @@
 """Evaluate a fine-tuned DETR model against ground-truth COCO annotations."""
 
 import argparse
+import os
 from pathlib import Path
 
 import torch
@@ -29,7 +30,11 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--output_json", default=None)
     parser.add_argument("--evaluation_dir", default=None)
-    parser.add_argument("--model_repo_dir", default="./pest_detection_model")
+    _default_model_repo = (
+        "/cwork/ad641/pest_detection_model" if os.getcwd().startswith("/hpc")
+        else "./pest_detection_model"
+    )
+    parser.add_argument("--model_repo_dir", default=_default_model_repo)
     args = parser.parse_args()
 
     device = get_device()

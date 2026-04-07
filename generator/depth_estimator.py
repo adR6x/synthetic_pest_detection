@@ -91,16 +91,25 @@ def _patch_metric3d_for_device(model, device):
 
 
 def _get_metric3d_model():
-    """Lazily load and cache the Metric3D v2 ViT-small model (process-local)."""
+    """Lazily load and cache the Metric3D v2 ViT-small model (process-local).
+
+    When HPC_MODE=1 the device is chosen by discover_devices() (highest free
+    VRAM GPU).  Otherwise falls back to the first CUDA device or CPU.
+    """
     global _METRIC3D_MODEL
     if _METRIC3D_MODEL is None:
         with _METRIC3D_LOCK:
             if _METRIC3D_MODEL is None:
                 import torch
+                from generator.config import HPC_MODE
+                if HPC_MODE:
+                    device_str = discover_devices()["best_device"]
+                else:
+                    device_str = "cuda" if _cuda_available() else "cpu"
+                device = torch.device(device_str)
                 model = torch.hub.load(
                     "YvanYin/Metric3D", "metric3d_vit_small", pretrain=True
                 )
-                device = torch.device("cuda" if _cuda_available() else "cpu")
                 model = model.to(device)
                 model.eval()
                 _patch_metric3d_for_device(model, device)
@@ -609,15 +618,67 @@ def sample_pest_positions(mask, n, plane_width, plane_height):
 #  Inference strategy                                                          #
 # --------------------------------------------------------------------------- #
 
+def discover_devices():
+    """Scan and return all available compute devices on this machine.
+
+    On HPC (HPC_MODE=1) this is called at generation start so the pipeline
+    can select the best device rather than blindly using cuda:0.
+
+    Returns
+    -------
+    dict with keys:
+        'gpus'        – list of dicts: {index, name, free_mb, total_mb}
+                        sorted by free memory descending.
+        'cpu_count'   – int  logical CPU count.
+        'best_device' – str  torch device string for Metric3D
+                        (e.g. "cuda:1", "cuda:0", or "cpu").
+    """
+    import os as _os
+    cpu_count = _os.cpu_count() or 1
+    gpus = []
+    best_device = "cpu"
+
+    try:
+        import torch
+        if _cuda_available():
+            for i in range(torch.cuda.device_count()):
+                props = torch.cuda.get_device_properties(i)
+                free, total = torch.cuda.mem_get_info(i)
+                gpus.append({
+                    "index":    i,
+                    "name":     props.name,
+                    "free_mb":  free  // (1024 * 1024),
+                    "total_mb": total // (1024 * 1024),
+                })
+            gpus.sort(key=lambda g: g["free_mb"], reverse=True)
+            if gpus:
+                best_device = f"cuda:{gpus[0]['index']}"
+    except Exception:
+        pass
+
+    print("[device scan] CPUs:", cpu_count)
+    for g in gpus:
+        print(f"  GPU {g['index']} {g['name']}  "
+              f"{g['free_mb']} MB free / {g['total_mb']} MB total")
+    print(f"  → best device for Metric3D: {best_device}")
+
+    return {"gpus": gpus, "cpu_count": cpu_count, "best_device": best_device}
+
+
 def compute_inference_strategy():
     """Return 'parallel' or 'sequential' for the three feed-forward models.
 
     Rules
     -----
+    - HPC_MODE=1           → always 'parallel'; device chosen by discover_devices()
     - No CUDA (CPU only)   → 'parallel'   (no VRAM contention)
     - Multiple GPUs        → 'parallel'   (models can use separate devices)
     - Single GPU           → 'sequential' (avoid VRAM contention / context switching)
     """
+    from generator.config import HPC_MODE
+    if HPC_MODE:
+        discover_devices()
+        return "parallel"
     try:
         import torch
         if not _cuda_available():
