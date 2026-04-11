@@ -42,8 +42,9 @@ Arguments:
                             (default: 1.0)
 
     Output:
-        --output_dir        Where to save best model (default: /cwork/ad641/pest_detection_model/best on HPC)
         --model_repo_dir    Root of model repo (default: /cwork/ad641/pest_detection_model on HPC)
+                            Best and last checkpoints are saved under <model_repo_dir>/runs/<run_id>/best
+                            and <model_repo_dir>/runs/<run_id>/last respectively.
         --evaluation_dir    Where to save eval reports (default: <model_repo_dir>/evaluations)
         --name              Label for this run (default: "experiment")
         --results_csv       CSV file to append summary row (default: results_detection.csv)
@@ -256,9 +257,7 @@ def main():
     parser.add_argument("--lr", type=float, default=None)
     _on_hpc = os.getcwd().startswith("/hpc")
     _default_model_repo = "/cwork/ad641/pest_detection_model" if _on_hpc else "./pest_detection_model"
-    _default_output_dir = "/cwork/ad641/pest_detection_model/best" if _on_hpc else "./detr_finetuned"
 
-    parser.add_argument("--output_dir", default=_default_output_dir)
     parser.add_argument("--freeze_backbone", action="store_true")
     parser.add_argument("--partial_freeze", type=int, default=0)
     parser.add_argument("--augment", action="store_true")
@@ -543,10 +542,6 @@ def main():
                     processor,
                     trainer_state,
                 )
-                if args.output_dir:
-                    output_dir = Path(args.output_dir)
-                    if output_dir.resolve() != best_dir.resolve():
-                        save_model_bundle(output_dir, model, processor, trainer_state)
                 append_jsonl(
                     model_repo_layout["best_state_path"],
                     _build_model_state_record(
