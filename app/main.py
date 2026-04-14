@@ -53,7 +53,7 @@ VIDEOS_DIR = DEFAULT_VIDEOS_DIR
 LABELS_DIR = DEFAULT_LABELS_DIR
 
 # Real tab roots (always persistent; kept training-compatible)
-REAL_TRAIN_FRAME_STRIDE = 10
+REAL_TRAIN_FRAME_STRIDE = 5
 
 
 # --- Testing mode: use temp directory instead of outputs/ ---

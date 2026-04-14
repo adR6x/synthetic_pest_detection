@@ -1,4 +1,4 @@
-"""Create a deterministic 70/15/15 kitchen train/val/test split CSV."""
+"""Create a deterministic 80/5/15 kitchen train/val/test split CSV."""
 
 import csv
 import random
@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 SEED = 42
-TRAIN_FRAC = 0.70
-VAL_FRAC = 0.15
+TRAIN_FRAC = 0.80
+VAL_FRAC = 0.05
 VALID_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 SCRIPT_DIR = Path(__file__).resolve().parent
 CURATED_DIR = SCRIPT_DIR / "curated_img"

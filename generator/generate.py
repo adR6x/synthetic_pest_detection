@@ -58,7 +58,7 @@ else:
     HF_DATASET_DIR = os.path.normpath(os.path.join(_PROJECT_ROOT, "..", "pest_detection_dataset"))
 
 GENERATED_STATE_PATH   = os.path.join(HF_DATASET_DIR, "generated_state.json")
-REAL_TRAIN_FRAME_STRIDE = 10
+REAL_TRAIN_FRAME_STRIDE = 5
 
 _HF_DEFAULT_CATEGORIES = [
     {"id": 1, "name": "mouse",     "supercategory": "pest"},
