@@ -19,17 +19,17 @@ grep -q 'HOME/.local/bin' "$HOME/.bashrc" 2>/dev/null \
     || echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$HOME/.bashrc"
 
 # ─── Python ───────────────────────────────────────────────────────────────────
-info "Detecting Python 3.10+..."
+info "Detecting Python 3.9+..."
 PY=""
-for candidate in python3.12 python3.11 python3.10 python3 python; do
+for candidate in python3.12 python3.11 python3.10 python3.9 python3 python; do
     if command -v "$candidate" &>/dev/null; then
-        if "$candidate" -c "import sys; raise SystemExit(0 if sys.version_info >= (3,10) else 1)" 2>/dev/null; then
+        if "$candidate" -c "import sys; raise SystemExit(0 if sys.version_info >= (3,9) else 1)" 2>/dev/null; then
             PY="$candidate"
             break
         fi
     fi
 done
-[ -z "$PY" ] && error "Python 3.10+ not found. Try: module load Python/3.11.3 then re-run."
+[ -z "$PY" ] && error "Python 3.9+ not found."
 info "Using $PY ($(${PY} --version))"
 
 # ─── pip install dependencies ─────────────────────────────────────────────────
