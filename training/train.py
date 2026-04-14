@@ -366,7 +366,6 @@ def main():
         update_json(artifacts["run_report_path"], {
             "model": {
                 "base_checkpoint": args.model_name,
-                "output_dir": args.output_dir,
                 "strategy": strategy,
                 "model_repo_dir": str(model_repo_root),
                 "run_model_dir": str(model_repo_layout["run_root"]),
