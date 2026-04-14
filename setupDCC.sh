@@ -50,7 +50,7 @@ if "$CONDA_BIN" env list | grep -q "^${CONDA_ENV_NAME} "; then
     info "Conda env '${CONDA_ENV_NAME}' already exists — reusing."
 else
     info "Creating conda env '${CONDA_ENV_NAME}' with Python ${PYTHON_VERSION}..."
-    "$CONDA_BIN" create -y -n "$CONDA_ENV_NAME" python="$PYTHON_VERSION"
+    "$CONDA_BIN" create -y -n "$CONDA_ENV_NAME" python="$PYTHON_VERSION" -c conda-forge --override-channels
 fi
 
 conda activate "$CONDA_ENV_NAME"
