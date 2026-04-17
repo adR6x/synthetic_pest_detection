@@ -200,15 +200,29 @@ def _generate_detr_plots(coco_gt, predictions, threshold, save_dir,
         pred_cls_list.append(cls_idx)
 
     if tp_list:
-        ap_per_class(
-            tp=np.array(tp_list, dtype=bool),
-            conf=np.array(conf_list, dtype=np.float32),
-            pred_cls=np.array(pred_cls_list, dtype=np.int32),
-            target_cls=np.array(target_cls_list, dtype=np.int32),
-            plot=True,
-            save_dir=save_dir,
-            names=names,
-        )
+        tp_arr = np.array(tp_list, dtype=bool)
+        # newer ultralytics expects tp to be 2D (N, num_iou_thresholds)
+        if tp_arr.ndim == 1:
+            tp_arr = tp_arr.reshape(-1, 1)
+        try:
+            ap_per_class(
+                tp=tp_arr,
+                conf=np.array(conf_list, dtype=np.float32),
+                pred_cls=np.array(pred_cls_list, dtype=np.int32),
+                target_cls=np.array(target_cls_list, dtype=np.int32),
+                plot=True,
+                save_dir=save_dir,
+                names=names,
+            )
+        except TypeError:
+            ap_per_class(
+                tp=tp_arr,
+                conf=np.array(conf_list, dtype=np.float32),
+                pred_cls=np.array(pred_cls_list, dtype=np.int32),
+                target_cls=np.array(target_cls_list, dtype=np.int32),
+                plot=True,
+                save_dir=save_dir,
+            )
 
     print(f"  Plots saved to {save_dir}")
 
