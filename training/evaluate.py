@@ -89,13 +89,20 @@ def _generate_detr_plots(coco_gt, predictions, threshold, save_dir,
 
     # --- Confusion matrix ---
     print("  Building confusion matrix ...")
-    try:
-        cm = ConfusionMatrix(nc=nc, conf=threshold, iou_thres=iou_threshold)
-    except TypeError:
+    for _kwargs in [
+        {"nc": nc, "conf": threshold, "iou_thres": iou_threshold},
+        {"nc": nc, "conf": threshold, "iou_threshold": iou_threshold},
+        {"nc": nc, "conf": threshold},
+        {"num_classes": nc, "conf": threshold},
+        {"conf": threshold},
+    ]:
         try:
-            cm = ConfusionMatrix(nc=nc, conf=threshold, iou_threshold=iou_threshold)
+            cm = ConfusionMatrix(**_kwargs)
+            break
         except TypeError:
-            cm = ConfusionMatrix(nc=nc, conf=threshold)
+            continue
+    else:
+        cm = ConfusionMatrix(nc)
 
     pred_by_img = defaultdict(list)
     for p in predictions:
