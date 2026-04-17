@@ -114,8 +114,14 @@ def _generate_detr_plots(coco_gt, predictions, threshold, save_dir,
                if preds else np.zeros((0, 6), dtype=np.float32))
         cm.process_batch(det, gt_boxes, gt_cls)
 
-    cm.plot(normalize=False, save_dir=str(save_dir), names=list(names.values()))
-    cm.plot(normalize=True,  save_dir=str(save_dir), names=list(names.values()))
+    for normalize in (False, True):
+        try:
+            cm.plot(normalize=normalize, save_dir=str(save_dir), names=list(names.values()))
+        except TypeError:
+            try:
+                cm.plot(normalize=normalize, save_dir=str(save_dir))
+            except Exception:
+                pass
 
     # --- PR / P / R / F1 curves ---
     print("  Computing PR curve data ...")
