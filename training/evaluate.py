@@ -89,58 +89,51 @@ def _generate_detr_plots(coco_gt, predictions, threshold, save_dir,
 
     # --- Confusion matrix ---
     print("  Building confusion matrix ...")
-    names_list = list(names.values())
-    for _kwargs in [
-        {"nc": nc, "conf": threshold, "iou_thres": iou_threshold},
-        {"nc": nc, "conf": threshold, "iou_threshold": iou_threshold},
-        {"nc": nc, "conf": threshold},
-        {"names": names_list, "conf": threshold, "iou_thres": iou_threshold},
-        {"names": names_list, "conf": threshold},
-        {"names": names_list},
-    ]:
-        try:
-            cm = ConfusionMatrix(**_kwargs)
-            break
-        except TypeError:
-            continue
-    else:
-        cm = ConfusionMatrix(names_list)
-
     pred_by_img = defaultdict(list)
     for p in predictions:
         if p["score"] >= threshold:
             pred_by_img[p["image_id"]].append(p)
 
-    for img_id in img_ids:
-        gt_anns = gt_by_img[img_id]
-        gt_boxes = (np.array([_xywh_to_xyxy(a["bbox"]) for a in gt_anns], dtype=np.float32)
-                    if gt_anns else np.zeros((0, 4), dtype=np.float32))
-        gt_cls   = (np.array([id2idx.get(a["category_id"], 0) for a in gt_anns], dtype=np.int32)
-                    if gt_anns else np.zeros(0, dtype=np.int32))
-        preds = pred_by_img[img_id]
-        det = (np.array([[*_xywh_to_xyxy(p["bbox"]), p["score"],
-                          id2idx.get(p["category_id"], 0)] for p in preds], dtype=np.float32)
-               if preds else np.zeros((0, 6), dtype=np.float32))
-        try:
-            # older ultralytics: process_batch(det_array, gt_boxes, gt_cls)
-            cm.process_batch(det, gt_boxes, gt_cls)
-        except (IndexError, TypeError):
-            # newer ultralytics: process_batch({"cls": ..., "bboxes": ..., "conf": ...}, gt_boxes, gt_cls)
-            det_dict = {
-                "cls":   torch.tensor(det[:, 5]) if len(det) else torch.zeros(0),
-                "bboxes": torch.tensor(det[:, :4]) if len(det) else torch.zeros((0, 4)),
-                "conf":  torch.tensor(det[:, 4]) if len(det) else torch.zeros(0),
-            }
-            cm.process_batch(det_dict, torch.tensor(gt_boxes), torch.tensor(gt_cls))
-
-    for normalize in (False, True):
-        try:
-            cm.plot(normalize=normalize, save_dir=str(save_dir), names=list(names.values()))
-        except TypeError:
+    try:
+        names_list = list(names.values())
+        cm = None
+        for _kwargs in [
+            {"nc": nc, "conf": threshold, "iou_thres": iou_threshold},
+            {"nc": nc, "conf": threshold, "iou_threshold": iou_threshold},
+            {"nc": nc, "conf": threshold},
+            {"names": names_list, "conf": threshold, "iou_thres": iou_threshold},
+            {"names": names_list, "conf": threshold},
+            {"names": names_list},
+        ]:
             try:
-                cm.plot(normalize=normalize, save_dir=str(save_dir))
-            except Exception:
-                pass
+                cm = ConfusionMatrix(**_kwargs)
+                break
+            except TypeError:
+                continue
+
+        if cm is not None:
+            for img_id in img_ids:
+                gt_anns = gt_by_img[img_id]
+                gt_boxes = (np.array([_xywh_to_xyxy(a["bbox"]) for a in gt_anns], dtype=np.float32)
+                            if gt_anns else np.zeros((0, 4), dtype=np.float32))
+                gt_cls   = (np.array([id2idx.get(a["category_id"], 0) for a in gt_anns], dtype=np.int32)
+                            if gt_anns else np.zeros(0, dtype=np.int32))
+                preds = pred_by_img[img_id]
+                det = (np.array([[*_xywh_to_xyxy(p["bbox"]), p["score"],
+                                  id2idx.get(p["category_id"], 0)] for p in preds], dtype=np.float32)
+                       if preds else np.zeros((0, 6), dtype=np.float32))
+                cm.process_batch(det, gt_boxes, gt_cls)
+
+            for normalize in (False, True):
+                try:
+                    cm.plot(normalize=normalize, save_dir=str(save_dir), names=names_list)
+                except Exception:
+                    try:
+                        cm.plot(normalize=normalize, save_dir=str(save_dir))
+                    except Exception:
+                        pass
+    except Exception as e:
+        print(f"  Warning: confusion matrix skipped ({e})")
 
     # --- PR / P / R / F1 curves ---
     print("  Computing PR curve data ...")
