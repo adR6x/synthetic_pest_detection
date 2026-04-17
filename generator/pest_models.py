@@ -55,6 +55,12 @@ def load_sprite(pest_type, sprites_dir):
         if sagnik_mouse is not None:
             return _stylize_rat_from_mouse_sprite(sagnik_mouse)
 
+    # Cockroach uses Sagnik's cockroach sprite set.
+    if pest_type == "cockroach":
+        sagnik_cockroach = _load_random_sagnik_cockroach_sprite(sprites_dir)
+        if sagnik_cockroach is not None:
+            return sagnik_cockroach
+
     preferred_default = os.path.join(sprite_dir, "default.png")
     if os.path.isfile(preferred_default):
         return Image.open(preferred_default).convert("RGBA")
@@ -81,6 +87,21 @@ def _load_random_sagnik_mouse_sprite(sprites_dir):
 
     chosen = random.choice(sorted(sagnik_mouse_files))
     return Image.open(os.path.join(mouse_dir, chosen)).convert("RGBA")
+
+
+def _load_random_sagnik_cockroach_sprite(sprites_dir):
+    """Return one random cockroach sprite from Sagnik's set, or None if missing."""
+    cockroach_dir = os.path.join(sprites_dir, "cockroach")
+    if not os.path.isdir(cockroach_dir):
+        return None
+    files = [
+        f for f in os.listdir(cockroach_dir)
+        if f.lower().endswith(".png") and f.lower().startswith("sagnik_cockroach_")
+    ]
+    if not files:
+        return None
+    chosen = random.choice(sorted(files))
+    return Image.open(os.path.join(cockroach_dir, chosen)).convert("RGBA")
 
 
 def _stylize_rat_from_mouse_sprite(mouse_sprite):
