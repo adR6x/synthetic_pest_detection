@@ -72,10 +72,45 @@ def _iou_xyxy(b1, b2):
     return inter / union if union > 0 else 0.0
 
 
+def _plot_confusion_matrix(matrix, names, save_dir, normalize=False):
+    """Plot confusion matrix using matplotlib — no ultralytics dependency."""
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use("Agg")
+
+    nc = len(names)
+    data = matrix.astype(float)
+    if normalize:
+        row_sums = data.sum(axis=1, keepdims=True)
+        data = np.divide(data, row_sums, where=row_sums > 0)
+
+    fig, ax = plt.subplots(figsize=(max(6, nc + 2), max(5, nc + 1)))
+    im = ax.imshow(data, cmap="Blues")
+    plt.colorbar(im, ax=ax)
+    ax.set_xticks(range(nc + 1))
+    ax.set_yticks(range(nc + 1))
+    ax.set_xticklabels(names + ["bg"], rotation=45, ha="right")
+    ax.set_yticklabels(names + ["bg"])
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("True")
+    title = "Confusion Matrix (Normalized)" if normalize else "Confusion Matrix"
+    ax.set_title(title)
+    for i in range(nc + 1):
+        for j in range(nc + 1):
+            val = data[i, j]
+            ax.text(j, i, f"{val:.2f}" if normalize else f"{int(matrix[i, j])}",
+                    ha="center", va="center",
+                    color="white" if val > data.max() * 0.5 else "black", fontsize=8)
+    plt.tight_layout()
+    fname = "confusion_matrix_normalized.png" if normalize else "confusion_matrix.png"
+    fig.savefig(save_dir / fname, dpi=150)
+    plt.close(fig)
+
+
 def _generate_detr_plots(coco_gt, predictions, threshold, save_dir,
                           iou_threshold=IOU_THRESHOLD, img_ids=None):
-    """Generate YOLO-style plots for DETR using ultralytics rendering utilities."""
-    from ultralytics.utils.metrics import ConfusionMatrix, ap_per_class
+    """Generate plots for DETR evaluation."""
+    from ultralytics.utils.metrics import ap_per_class
 
     save_dir = Path(save_dir)
     cats = sorted(coco_gt.dataset["categories"], key=lambda c: c["id"])
@@ -87,53 +122,44 @@ def _generate_detr_plots(coco_gt, predictions, threshold, save_dir,
     gt_by_img = {img_id: coco_gt.loadAnns(coco_gt.getAnnIds(imgIds=img_id))
                  for img_id in img_ids}
 
-    # --- Confusion matrix ---
+    # --- Confusion matrix (nc+1 x nc+1: classes + background) ---
     print("  Building confusion matrix ...")
     pred_by_img = defaultdict(list)
     for p in predictions:
         if p["score"] >= threshold:
             pred_by_img[p["image_id"]].append(p)
 
-    try:
-        names_list = list(names.values())
-        cm = None
-        for _kwargs in [
-            {"nc": nc, "conf": threshold, "iou_thres": iou_threshold},
-            {"nc": nc, "conf": threshold, "iou_threshold": iou_threshold},
-            {"nc": nc, "conf": threshold},
-            {"names": names_list, "conf": threshold, "iou_thres": iou_threshold},
-            {"names": names_list, "conf": threshold},
-            {"names": names_list},
-        ]:
-            try:
-                cm = ConfusionMatrix(**_kwargs)
-                break
-            except TypeError:
-                continue
+    cm_matrix = np.zeros((nc + 1, nc + 1), dtype=np.int64)
+    for img_id in img_ids:
+        gt_anns = gt_by_img[img_id]
+        gt_boxes = (np.array([_xywh_to_xyxy(a["bbox"]) for a in gt_anns], dtype=np.float32)
+                    if gt_anns else np.zeros((0, 4), dtype=np.float32))
+        gt_cls   = [id2idx.get(a["category_id"], 0) for a in gt_anns]
+        preds    = pred_by_img[img_id]
+        matched_gt = [False] * len(gt_anns)
 
-        if cm is not None:
-            for img_id in img_ids:
-                gt_anns = gt_by_img[img_id]
-                gt_boxes = (np.array([_xywh_to_xyxy(a["bbox"]) for a in gt_anns], dtype=np.float32)
-                            if gt_anns else np.zeros((0, 4), dtype=np.float32))
-                gt_cls   = (np.array([id2idx.get(a["category_id"], 0) for a in gt_anns], dtype=np.int32)
-                            if gt_anns else np.zeros(0, dtype=np.int32))
-                preds = pred_by_img[img_id]
-                det = (np.array([[*_xywh_to_xyxy(p["bbox"]), p["score"],
-                                  id2idx.get(p["category_id"], 0)] for p in preds], dtype=np.float32)
-                       if preds else np.zeros((0, 6), dtype=np.float32))
-                cm.process_batch(det, gt_boxes, gt_cls)
+        for p in sorted(preds, key=lambda x: -x["score"]):
+            pred_box = np.array(_xywh_to_xyxy(p["bbox"]), dtype=np.float32)
+            pred_cls = id2idx.get(p["category_id"], 0)
+            best_iou, best_gi = 0.0, -1
+            for gi, gt_box in enumerate(gt_boxes):
+                if not matched_gt[gi]:
+                    iou = _iou_xyxy(pred_box, gt_box)
+                    if iou > best_iou:
+                        best_iou, best_gi = iou, gi
+            if best_iou >= iou_threshold and best_gi >= 0:
+                matched_gt[best_gi] = True
+                cm_matrix[gt_cls[best_gi], pred_cls] += 1  # TP (or class mismatch)
+            else:
+                cm_matrix[nc, pred_cls] += 1  # FP (background → predicted class)
 
-            for normalize in (False, True):
-                try:
-                    cm.plot(normalize=normalize, save_dir=str(save_dir), names=names_list)
-                except Exception:
-                    try:
-                        cm.plot(normalize=normalize, save_dir=str(save_dir))
-                    except Exception:
-                        pass
-    except Exception as e:
-        print(f"  Warning: confusion matrix skipped ({e})")
+        for gi, matched in enumerate(matched_gt):
+            if not matched:
+                cm_matrix[gt_cls[gi], nc] += 1  # FN (true class → background)
+
+    _plot_confusion_matrix(cm_matrix, list(names.values()), save_dir, normalize=False)
+    _plot_confusion_matrix(cm_matrix, list(names.values()), save_dir, normalize=True)
+    print(f"  Confusion matrix saved to {save_dir}")
 
     # --- PR / P / R / F1 curves ---
     print("  Computing PR curve data ...")
