@@ -260,13 +260,17 @@ def evaluate_yolo(model_path: str, data_dir: str, split: str, output_dir: Path, 
 # DETR evaluation
 # ---------------------------------------------------------------------------
 
-def evaluate_detr(model_path: str, data_dir: str, split: str, output_dir: Path, threshold: float, device):
+def evaluate_detr(model_path: str, data_dir: str, split: str, output_dir: Path, threshold: float, device, n_images: int = None):
     resolved = resolve_split_paths(data_dir, split)
     coco_gt = COCO(str(resolved["annotation_path"]))
     model, processor = load_model_from_path(model_path, device)
 
     postprocess_threshold = max(0.05, threshold * 0.5)
     img_ids = coco_gt.getImgIds()
+    if n_images is not None and n_images < len(img_ids):
+        import random
+        img_ids = random.sample(img_ids, n_images)
+        print(f"  Sampling {n_images} images from {split} split ...")
     print(f"  Running inference on {len(img_ids)} images ...")
     predictions = run_detection_on_dataset(
         model, processor, coco_gt, str(resolved["image_dir"]),
@@ -336,6 +340,8 @@ def main():
     parser.add_argument("--model_repo_dir", default=_DEFAULT_MODEL_REPO)
     parser.add_argument("--model_type", choices=["detr", "yolo"], default=None,
                         help="Auto-detected from path if omitted (.pt → yolo, dir → detr)")
+    parser.add_argument("--n_images", type=int, default=None,
+                        help="Evaluate on a random sample of N images (default: all)")
     args = parser.parse_args()
 
     model_path = Path(args.model_path)
@@ -356,6 +362,7 @@ def main():
         print(f"Device     : {device}\n")
         report, output_json = evaluate_detr(
             str(model_path), args.data_dir, args.split, output_dir, args.threshold, device,
+            n_images=args.n_images,
         )
 
         ev = report["evaluation"]
