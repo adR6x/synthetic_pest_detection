@@ -121,7 +121,17 @@ def _generate_detr_plots(coco_gt, predictions, threshold, save_dir,
         det = (np.array([[*_xywh_to_xyxy(p["bbox"]), p["score"],
                           id2idx.get(p["category_id"], 0)] for p in preds], dtype=np.float32)
                if preds else np.zeros((0, 6), dtype=np.float32))
-        cm.process_batch(det, gt_boxes, gt_cls)
+        try:
+            # older ultralytics: process_batch(det_array, gt_boxes, gt_cls)
+            cm.process_batch(det, gt_boxes, gt_cls)
+        except (IndexError, TypeError):
+            # newer ultralytics: process_batch({"cls": ..., "bboxes": ..., "conf": ...}, gt_boxes, gt_cls)
+            det_dict = {
+                "cls":   torch.tensor(det[:, 5]) if len(det) else torch.zeros(0),
+                "bboxes": torch.tensor(det[:, :4]) if len(det) else torch.zeros((0, 4)),
+                "conf":  torch.tensor(det[:, 4]) if len(det) else torch.zeros(0),
+            }
+            cm.process_batch(det_dict, torch.tensor(gt_boxes), torch.tensor(gt_cls))
 
     for normalize in (False, True):
         try:
