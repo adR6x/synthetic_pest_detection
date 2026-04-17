@@ -34,7 +34,7 @@ def main():
     parser.add_argument("--data_dir", default=_DEFAULT_DATA_DIR)
     parser.add_argument("--project", default=_DEFAULT_PROJECT)
     parser.add_argument("--name", default="yolo8smine")
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--resume", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
@@ -62,11 +62,17 @@ def main():
     from training.dataset import make_coco_trainer
     from ultralytics import YOLO
 
-    model = YOLO("yolov8s.pt")
+    last_ckpt = Path(args.project) / args.name / "weights" / "last.pt"
+    if args.resume and last_ckpt.exists():
+        print(f"Resuming from {last_ckpt}")
+        model = YOLO(str(last_ckpt))
+    else:
+        model = YOLO("yolov8s.pt")
+
     model.train(
         data=str(yaml_path),
         trainer=make_coco_trainer(ann_files, cat_id_to_yolo),
-        resume=args.resume,
+        resume=args.resume and last_ckpt.exists(),
         epochs=args.epochs,
         imgsz=640,
         batch=-1,
