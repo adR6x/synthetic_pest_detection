@@ -32,42 +32,63 @@ def load_model_from_path(model_path: str, device: torch.device):
     return model, processor
 
 
+def _auto_batch_size(device: torch.device, bytes_per_image: int = 400 * 1024 * 1024) -> int:
+    """Estimate a safe batch size from free GPU memory. Falls back to 1 on CPU/MPS."""
+    if device.type != "cuda":
+        return 1
+    free, _ = torch.cuda.mem_get_info(device.index if device.index is not None else 0)
+    batch = max(1, int(free * 0.8 / bytes_per_image))
+    return min(batch, 32)
+
+
 @torch.no_grad()
-def run_detection_on_dataset(model, processor, coco_gt, img_dir, device, threshold=0.3, img_ids=None):
+def run_detection_on_dataset(model, processor, coco_gt, img_dir, device, threshold=0.3,
+                              img_ids=None, batch_size: int | None = None):
     """Run the model on all images in a COCO dataset. Returns a predictions list."""
-    predictions = []
     img_ids = img_ids if img_ids is not None else coco_gt.getImgIds()
+    if batch_size is None:
+        batch_size = _auto_batch_size(device)
 
-    for img_id in tqdm(img_ids, desc="Running detection"):
-        img_info = coco_gt.loadImgs(img_id)[0]
-        file_name = img_info["file_name"]
+    predictions = []
+    img_info_map = {info["id"]: info for info in coco_gt.loadImgs(img_ids)}
 
-        img_path = os.path.join(img_dir, file_name)
-        if not os.path.exists(img_path):
-            img_path = os.path.join(img_dir, os.path.basename(file_name))
-        if not os.path.exists(img_path):
+    def _resolve_path(file_name):
+        p = os.path.join(img_dir, file_name)
+        if not os.path.exists(p):
+            p = os.path.join(img_dir, os.path.basename(file_name))
+        return p if os.path.exists(p) else None
+
+    for batch_start in tqdm(range(0, len(img_ids), batch_size), desc="Running detection"):
+        batch_ids = img_ids[batch_start: batch_start + batch_size]
+
+        images, valid_ids = [], []
+        for img_id in batch_ids:
+            path = _resolve_path(img_info_map[img_id]["file_name"])
+            if path:
+                images.append(Image.open(path).convert("RGB"))
+                valid_ids.append(img_id)
+
+        if not images:
             continue
 
-        pil_image = Image.open(img_path).convert("RGB")
-        inputs = processor(images=pil_image, return_tensors="pt")
+        inputs = processor(images=images, return_tensors="pt")
         inputs = {k: v.to(device) for k, v in inputs.items()}
-
         outputs = model(**inputs)
-        target_sizes = torch.tensor([pil_image.size[::-1]]).to(device)
-        results = processor.post_process_object_detection(
-            outputs,
-            target_sizes=target_sizes,
-            threshold=threshold,
-        )[0]
 
-        for score, label, box in zip(results["scores"], results["labels"], results["boxes"]):
-            x1, y1, x2, y2 = box.cpu().numpy()
-            predictions.append({
-                "image_id": img_id,
-                "category_id": label.item(),
-                "bbox": [float(x1), float(y1), float(x2 - x1), float(y2 - y1)],
-                "score": round(score.item(), 6),
-            })
+        target_sizes = torch.tensor([img.size[::-1] for img in images]).to(device)
+        batch_results = processor.post_process_object_detection(
+            outputs, target_sizes=target_sizes, threshold=threshold,
+        )
+
+        for img_id, results in zip(valid_ids, batch_results):
+            for score, label, box in zip(results["scores"], results["labels"], results["boxes"]):
+                x1, y1, x2, y2 = box.cpu().numpy()
+                predictions.append({
+                    "image_id": img_id,
+                    "category_id": label.item(),
+                    "bbox": [float(x1), float(y1), float(x2 - x1), float(y2 - y1)],
+                    "score": round(score.item(), 6),
+                })
 
     return predictions
 

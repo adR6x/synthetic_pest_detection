@@ -219,3 +219,44 @@ def make_coco_trainer(ann_files, cat_id_to_yolo):
             )
 
     return _CocoDetectionTrainer
+
+
+def make_coco_validator(ann_files, cat_id_to_yolo):
+    """Return a DetectionValidator subclass that loads labels from COCO JSON on the fly.
+
+    ann_files: {'train': '...', 'val': '...', 'test': '...'}
+    cat_id_to_yolo: {coco_cat_id: yolo_class_index}
+    """
+    from ultralytics.models.yolo.detect import DetectionValidator
+    from ultralytics.utils import colorstr
+
+    class _CocoDetectionValidator(DetectionValidator):
+        def build_dataset(self, img_path, mode="val", batch=None):
+            path_str = str(img_path)
+            if "test" in path_str:
+                split = "test"
+            elif "val" in path_str:
+                split = "val"
+            else:
+                split = "train"
+            return CocoYOLODataset(
+                img_path=path_str,
+                imgsz=self.args.imgsz,
+                batch_size=batch,
+                augment=False,
+                hyp=self.args,
+                rect=True,
+                cache=None,
+                single_cls=self.args.single_cls or False,
+                stride=32,
+                pad=0.5,
+                prefix=colorstr(f"{mode}: "),
+                task=self.args.task,
+                classes=self.args.classes,
+                data=self.data,
+                fraction=1.0,
+                ann_file=ann_files[split],
+                cat_id_to_yolo=cat_id_to_yolo,
+            )
+
+    return _CocoDetectionValidator
