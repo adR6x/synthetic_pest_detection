@@ -74,3 +74,4 @@ pest_detection_dataset/
 
 # Trained model checkpoints
 pest_detection_model/
+pest_detection_model2/
