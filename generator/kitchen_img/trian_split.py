@@ -6,8 +6,8 @@ from pathlib import Path
 
 
 SEED = 42
-TRAIN_FRAC = 0.80
-VAL_FRAC = 0.05
+TRAIN_FRAC = 0.70
+VAL_FRAC = 0.10
 VALID_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 SCRIPT_DIR = Path(__file__).resolve().parent
 CURATED_DIR = SCRIPT_DIR / "curated_img"
