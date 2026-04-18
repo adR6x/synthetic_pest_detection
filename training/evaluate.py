@@ -264,6 +264,10 @@ def _run_name_from_path(model_path: Path, model_type: str) -> str:
     return model_path.parent.name              # .../runs/run_a54317ae/best
 
 
+def _threshold_token(threshold: float) -> str:
+    return str(threshold).replace(".", "_")
+
+
 # ---------------------------------------------------------------------------
 # YOLO evaluation
 # ---------------------------------------------------------------------------
@@ -404,7 +408,8 @@ def main():
 
     model_path = Path(args.model_path)
     model_type = args.model_type or ("yolo" if _is_yolo(args.model_path) else "detr")
-    run_name   = _run_name_from_path(model_path, model_type)
+    base_run_name = _run_name_from_path(model_path, model_type)
+    run_name = f"{base_run_name}_{_threshold_token(args.threshold)}"
     output_dir = Path(args.model_repo_dir) / "test_evaluation" / run_name
 
     print(f"Model type : {model_type}")
