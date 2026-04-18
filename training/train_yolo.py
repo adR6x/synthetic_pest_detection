@@ -68,6 +68,10 @@ def main():
         "val":   str(data_dir / "annotations" / "val.json"),
     }
 
+    import torch
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     from training.dataset import make_coco_trainer
     from ultralytics import YOLO
 
