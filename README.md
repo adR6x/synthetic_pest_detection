@@ -1,4 +1,5 @@
 # Synthetic Data Generation for Pest Detection in Kitchens
+### by Aidan Frutos, Yue Hu and Anubhav Dhakal
 
 A Python pipeline that composites 2D pest sprites onto real kitchen backgrounds to generate large-scale, auto-labeled synthetic video datasets for training pest detection models (mouse, rat, cockroach).
 
