@@ -92,7 +92,17 @@ Because the generator controls exact sprite position, rotation, and size at ever
 
 ## Dataset
 
-The generated dataset contains **359,700 images** and **569,100 annotations** (~1.6 objects/image), split 89% training / 11% validation. Class distribution: cockroach ~49%, mouse ~30%, rat ~20%. Approximately 25.7% of training images are negative (empty) frames, helping the model avoid false positives.
+Hugging Face dataset: **[adR6x/pest_detection_dataset2](https://huggingface.co/datasets/adR6x/pest_detection_dataset2)**  
+Metadata file used for split statistics: `generated_state.json`
+
+> **Video-level pest prevalence by split**  
+> Percentages are computed at the **video** level (from `generated_state.json`), where `mouse/rat/cockroach` means videos containing at least one of that pest (categories can overlap), and `none` means zero pests in the video.
+>
+> | Split | Mouse | Rat | Cockroach | None |
+> |---|---:|---:|---:|---:|
+> | Train (n=2837) | 35.78% | 26.37% | 52.20% | 26.26% |
+> | Val (n=345) | 37.10% | 25.51% | 51.88% | 25.51% |
+> | Test (n=818) | 35.45% | 30.07% | 50.37% | 24.08% |
 
 ---
 
