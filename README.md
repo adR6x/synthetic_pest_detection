@@ -1,194 +1,159 @@
-# Synthetic Data Generation for Pest Detection
+# Synthetic Data Generation for Pest Detection in Kitchens
 
-Synthetic kitchen-scene video generation for pest detection (mouse, rat, cockroach), with a Flask web app for curation, generation, and dataset prep.
+A Python pipeline that composites 2D pest sprites onto real kitchen backgrounds to generate large-scale, auto-labeled synthetic video datasets for training pest detection models (mouse, rat, cockroach).
 
-## What The App Supports
+## Demo
 
-The web app has four tabs:
+![Pest detection demo](readme/demo.gif)
 
-1. `Test Video Generator`
-- Generate one synthetic video from a selected kitchen image.
-- Shows video + frame overlays + scene analysis previews.
+*Bounding boxes: mouse · rat · cockroach*
 
-2. `Real Video Generator`
-- Batch-generate training jobs from curated kitchens.
-- Configurable: length, fps, number of videos, optional MP4 output.
-- Progress bar + live polling + 5-row paginated results.
-- Writes metadata to `outputs/generated_state.json`.
-- Uses [`generator/kitchen_img/test_train_split.csv`](generator/kitchen_img/test_train_split.csv) to assign each curated kitchen to train or test.
-- Future real-generation outputs are written under `outputs/train/` or `outputs/test/`.
-- Persists sparse training frames named `frame_0001`, `frame_0010`, `frame_0020`, ...
-- Keeps full `annotations.json` metadata even when only sparse frame images are saved.
-- If MP4 output is enabled, a dense temporary frame set is rendered for smooth video assembly, then only the sparse training frames are kept permanently.
+---
 
-3. `Kitchen Curator`
-- Review `uncurated_img/` images.
-- `Keep` moves image to `curated_img/` and assigns `kitchen_####.ext` ID.
-- `Delete` removes image and marks source as seen.
-- Supports downloading more Places365 images.
+## Motivation
 
-4. `Kitchen Generator`
-- Generate kitchen images with Gemini API.
-- Generated images go to `uncurated_img/` first, then can be curated.
+Commercial kitchens face a critical hygiene challenge: pest sightings are rare, privacy concerns prevent camera access, and manually labeling thousands of hours of security footage is prohibitive. This pipeline bypasses all three constraints by generating synthetic frames with automatic COCO annotations — no human labeling required.
 
-## Setup
+Our original approach used Blender to render physics-based 3D video, but full 3D rendering took ~110 hours for 1,000 thirty-second videos. We pivoted to 2D sprite compositing, which generates the same volume in under 20 minutes while preserving depth-aware scaling, surface-guided placement, and realistic motion.
+
+---
+
+## Pipeline Overview
+
+![Pipeline diagram](readme/generator_v2.png)
+
+The pipeline follows a linear flow:
+
+```
+Static Kitchen Photo → Scene Analysis → Pest Initialization → Frame Compositing → COCO Export
+```
+
+### 1. Kitchen Image Curation
+
+Kitchen backgrounds come from two sources:
+
+- **Places365** — 70 real commercial kitchen images manually curated from the Places365 validation split, providing realistic layouts, viewpoints, and clutter.
+- **Gemini API** — 63 synthetically generated kitchen scenes increasing variation in lighting, cleanliness, and equipment placement.
+
+All images are resized to the generator's standard frame format (640×480) before compositing.
+
+### 2. Scene Analysis
+
+For each kitchen image, the generator runs **Metric3D v2** (Hu et al., 2024) to estimate:
+
+- A **metric depth map** — approximate distance-from-camera per pixel.
+- **Per-pixel surface normals** — orientation of every visible surface.
+
+Normals are grouped into surface categories: upward-facing surfaces (floor/counter/shelf), left-facing walls, right-facing walls, camera-facing vertical surfaces, and undersides/ceilings. This gives the 2D image a lightweight geometric structure without full 3D reconstruction.
+
+### 3. Probabilistic Pest Initialization
+
+For every video, the pipeline samples:
+
+- **Number of pests** (including zero-pest null cases):
+  - `P(N=0) = 0.25`
+  - `P(N=1) = 0.30`
+  - Remaining 0.45 distributed exponentially over `N=2..6`
+- **Pest type** per slot:
+  - Cockroach `0.50` · Mouse `0.30` · Rat `0.20`
+
+Spawn locations are not uniform — each pest samples a starting surface based on species-specific behavior. Mice and rats spawn mostly on upward-facing surfaces (floors, counters); cockroaches may also spawn on walls or undersides.
+
+### 4. Per-Pest Dynamic Probability Masks
+
+Each pest receives movement probability masks derived from predicted surface normals. These masks favor the pest's current surface and suppress unlikely transitions based on a species-specific **surface stickiness** value. Each proposed movement step is checked against the active mask — high-probability regions allow movement, low-probability regions redirect the step — keeping motion physically plausible while allowing limited surface transitions.
+
+### 5. Depth-Aware Scaling and Motion
+
+The local depth value at the pest's spawn position determines its apparent size in the frame. The generator combines predicted depth, estimated focal length, and real-world pest body length to compute a depth-aware sprite scale, then applies a global size multiplier (1.8×) for visibility.
+
+Depth also governs motion: pests farther from the camera move fewer pixels per frame, while nearby pests move more visibly, preserving perspective consistency across the video.
+
+### 6. Frame Compositing and COCO Export
+
+For each frame, the generator:
+
+1. Copies the kitchen background.
+2. Loads the selected RGBA pest sprite for the current animation frame.
+3. Resizes it using the computed depth-aware scale.
+4. Rotates it to match the pest's movement direction.
+5. Alpha-composites it onto the scene.
+
+Because the generator controls exact sprite position, rotation, and size at every frame, it automatically computes 2D bounding boxes and exports annotations in standard **COCO JSON** format.
+
+**Classes:**
+| ID | Name |
+|----|------|
+| 0  | Mouse |
+| 1  | Rat |
+| 2  | Cockroach |
+
+---
+
+## Dataset
+
+The generated dataset contains **359,700 images** and **569,100 annotations** (~1.6 objects/image), split 89% training / 11% validation. Class distribution: cockroach ~49%, mouse ~30%, rat ~20%. Approximately 25.7% of training images are negative (empty) frames, helping the model avoid false positives.
+
+---
+
+## Web App
+
+A Flask web app provides a UI for curation, generation, and dataset prep across four tabs:
+
+1. **Test Video Generator** — Generate one synthetic video from a selected kitchen image; view frame overlays and scene analysis previews.
+2. **Real Video Generator** — Batch-generate training jobs from curated kitchens with configurable length, FPS, and MP4 output.
+3. **Kitchen Curator** — Review uncurated images; keep (moves to `curated_img/`) or delete.
+4. **Kitchen Generator** — Generate new kitchen backgrounds with the Gemini API.
+
+### Setup
 
 Requires Python 3.10+ (Python 3.12 recommended).
 
-### macOS / Linux / WSL
-
+**macOS / Linux / WSL**
 ```bash
 bash setupUNIX.sh
 poetry shell
 ```
 
-### Windows (PowerShell)
-
+**Windows (PowerShell)**
 ```powershell
 .\setupPC.ps1
 poetry shell
 ```
 
-Setup scripts install all required Python packages from `pyproject.toml` and install the local `mmcv` compatibility stub used by Metric3D dependencies. On Linux, `setupUNIX.sh` also attempts to install OpenCV runtime libraries (`libgl1`, `libglib2.0-0`) when missing.
-
-## Run The App
-
-Inside `poetry shell`:
+### Run
 
 ```bash
 flask --app app.main run
 # Open http://localhost:5000
 ```
 
-## Current Data Layout
+---
+
+## Output Layout
 
 ```text
 outputs/
-  uploads/                  # ad-hoc uploads
-  frames/{job_id}/          # legacy real/test outputs
-  labels/{job_id}/          # legacy COCO annotations.json
-  videos/{job_id}.mp4       # legacy optional MP4 outputs
-  generated_state.json      # real-batch metadata state
   train/
-    frames/{job_id}/        # sparse real-generation frame images
-    labels/{job_id}/        # full COCO annotations.json for the job
-    videos/{job_id}.mp4     # optional real-generation MP4s
+    frames/{job_id}/        # sparse frame images (frame_0001, frame_0010, ...)
+    labels/{job_id}/        # COCO annotations.json
+    videos/{job_id}.mp4     # optional MP4
   test/
     frames/{job_id}/
     labels/{job_id}/
     videos/{job_id}.mp4
+  generated_state.json      # full metadata for all generated jobs
 
 generator/kitchen_img/
-  uncurated_img/            # downloaded or Gemini-generated, pending review
-  curated_img/              # approved kitchens, named as kitchen_####.jpg
-  download_state.json       # seen Places IDs + kitchen/source mapping
-  test_train_split.csv      # kitchen-level 75/25 train/test assignment
+  curated_img/              # approved kitchens (kitchen_####.jpg)
+  uncurated_img/            # pending review
+  test_train_split.csv      # kitchen-level train/test assignment
 ```
 
-## State Files
+---
 
-### `outputs/generated_state.json`
+## References
 
-Top-level keys:
-- `generated_videos`: list of generation records
-- `updated_at`
+Hu, M., Yin, W., Zhang, C., Cai, Z., Long, X., Chen, H., Wang, K., Yu, G., Shen, C., & Shen, S. (2024). Metric3D v2: A versatile monocular geometric foundation model for zero-shot metric depth and surface normal estimation. *IEEE Transactions on Pattern Analysis and Machine Intelligence, 46*(12), 10579–10596. https://doi.org/10.1109/TPAMI.2024.3444912
 
-Each generation record currently includes:
-- `job_id`
-- `video_id`
-- `kitchen_id` (filename in curated set, e.g. `kitchen_0016.jpg`)
-- `split` (`train` or `test`) for newer real-generation rows
-- `train` (`1` for train, `0` for test) for newer real-generation rows
-- `length_of_video_seconds`
-- `fps`
-- `mouse_count`
-- `rat_count`
-- `cockroach_count`
-- `date_time_generated`
-- `time_taken_to_generate_seconds`
-- `pest_size_multiplier`
-- `pest_generation_metadata` (per pest):
-  - `pest_index`, `pest_type`
-  - `relative_size_scale`
-  - `relative_size_image_fraction`
-  - `approx_initial_pixel_width`
-  - `initial_position_image_px`
-  - `initial_position_image_norm`
-
-### `generator/kitchen_img/download_state.json`
-
-Top-level keys:
-- `seen_places365_files`
-- `kitchen_mappings`
-
-`kitchen_mappings` maps curated `kitchen_id` to Places365 source metadata:
-- `places365_source_id`
-- `places365_link`
-- `linked_at`
-
-## Places365 Download Behavior
-
-- Downloader uses Places365 metadata (`places365_train_standard.txt` or `places365_val.txt`) to find class-203 kitchens.
-- It then streams the selected split archive tar and extracts only selected unseen kitchens.
-- `val` has 100 kitchen images total; once all are seen, curator download reports no unseen.
-- `download_state.json` prevents re-downloading images already seen/curated/deleted.
-
-## Generation Pipeline (Current)
-
-Implemented in `generator/pipeline.py`:
-
-1. Load kitchen image.
-2. Run Metric3D + gravity estimation.
-3. Build surface-aware spawn/movement masks.
-4. Sample number of pests `N` with this distribution:
-- `P(N=0)=0.25`
-- `P(N=1)=0.30`
-- Remaining 0.45 distributed exponentially over `N=2..6`.
-5. For each pest slot, sample type with:
-- cockroach `0.50`
-- mouse `0.30`
-- rat `0.20`
-6. Compute depth-aware scale and apply global multiplier `1.8x`.
-7. Composite frames + COCO labels.
-8. Optionally assemble MP4.
-
-## Training Pipeline
-
-### 1) Prepare DETR dataset
-
-```bash
-python -m training.prepare_dataset \
-  --frames_root outputs/train/frames \
-  --labels_root outputs/train/labels \
-  --output_dir outputs/dataset \
-  --val_frac 0.1 --test_frac 0.1 \
-  --every_n 10
-```
-
-Current split logic:
-- split by **job/video** (not frame)
-- default ~80/10/10 train/val/test
-- loader filters by frame filenames actually present on disk, so it works with dense legacy outputs and newer sparse-saved outputs
-- for newer real-generation outputs, frame images are sparse but `annotations.json` may still contain entries for unsaved frames; this is expected and handled by the loader
-
-### Kitchen Train/Test Split
-
-- `generator/kitchen_img/test_train_split.csv` is the source of truth for kitchen-level train/test assignment.
-- It has columns `id,train`, where `id` is the curated kitchen filename and `train` is `1` for train, `0` for test.
-- Regenerate it with:
-
-```bash
-python3 generator/kitchen_img/test_train_split.py
-```
-
-### 2) Train DETR
-
-```bash
-python -m training.train --data_dir outputs/dataset --freeze_backbone
-```
-
-## Notes
-
-- `curated_img` uses `kitchen_####` naming (legacy `kitchen_img_####` is migrated automatically where applicable).
-- Real generation can run with or without MP4 assembly.
-- Null cases are supported (`N=0`) in generation.
+Wang, X., Xie, L., Dong, C., & Shan, Y. (2021). Real-ESRGAN: Training real-world blind super-resolution with pure synthetic data. *Proceedings of the IEEE/CVF International Conference on Computer Vision Workshops (ICCVW)*, 1905–1914.
